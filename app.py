@@ -57,6 +57,8 @@ def load_data(table_name):
     conn = sqlite3.connect("simantap_database.db")
     df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
     conn.close()
+    # Membersihkan baris kosong agar jumlah baris akurat tanpa selisih
+    df = df.dropna(how="all")
     return df
   except Exception:
     return pd.DataFrame()
@@ -86,20 +88,46 @@ def clean_harga(df, possible_cols=["Harga", "Nilai", "Total_Harga"]):
 
 def kategorkan_kendaraan(nama_brg):
   if pd.isna(nama_brg):
-    return "Lainnya"
+    return "Mobil Dinas"
   n = str(nama_brg).upper()
+
   if any(
-      x in n for x in ["ALAT BERAT", "EXCAVATOR", "LOADER", "GRADER", "BULLDOZER"]
+      x in n
+      for x in [
+          "ALAT BERAT",
+          "EXCAVATOR",
+          "LOADER",
+          "GRADER",
+          "BULLDOZER",
+          "CRANE",
+          "TRAKTOR",
+          "FORKLIFT",
+      ]
   ):
     return "Alat Berat"
-  elif any(x in n for x in ["PICK", "STRADA", "HILUX", "BOX", "TRUCK"]):
-    return "Pick Up / Truk"
   elif any(
-      x in n for x in ["MOTOR", "SEPEDA MOTOR", "TRAIL", "VESPA", "YAMAHA", "HONDA"]
-  ) and not any(x in n for x in ["CIVIC", "AVANZA", "INNOVA", "SEDAN"]):
-    return "Sepeda Motor"
-  else:
-    return "Mobil Dinas"
+      x in n
+      for x in [
+          "MOTOR",
+          "SEPEDA MOTOR",
+          "TRAIL",
+          "VESPA",
+          "YAMAHA",
+          "HONDA",
+          "SUZUKI",
+          "KAWASAKI",
+      ]
+  ):
+    if not any(
+        x in n for x in ["CIVIC", "AVANZA", "INNOVA", "SEDAN", "MINIBUS", "BUS"]
+    ):
+      return "Sepeda Motor"
+  if any(
+      x in n for x in ["PICK UP", "TRUCK", "TRUK", "BOX", "DUMP", "STRADA", "HILUX"]
+  ):
+    return "Pick Up / Truk"
+
+  return "Mobil Dinas"
 
 
 # --- HEADER UTAMA ---
@@ -137,7 +165,7 @@ menu = st.sidebar.selectbox(
 
 
 # ==========================================
-# 0. BERANDA & RINGKASAN EKSEKUTIF (TANPA FILTER)
+# 0. BERANDA & RINGKASAN EKSEKUTIF
 # ==========================================
 if menu == "Beranda & Ringkasan":
   st.markdown(
@@ -302,7 +330,7 @@ if menu == "Beranda & Ringkasan":
 
 
 # ==========================================
-# 1. MENU KENDARAAN DINAS (DENGAN KLIK PREVIEW & DOWNLOAD)
+# 1. MENU KENDARAAN DINAS
 # ==========================================
 elif menu == "Kendaraan Dinas":
   df = load_data("tabel_kendaraan")
@@ -447,7 +475,9 @@ elif menu == "Kendaraan Dinas":
       )
 
       event = st.dataframe(
-          df_view.drop(columns=["Harga_Clean", "Kategori_Kendaraan"], errors="ignore"),
+          df_view.drop(
+              columns=["Harga_Clean", "Kategori_Kendaraan"], errors="ignore"
+          ),
           use_container_width=True,
           on_select="rerun",
           selection_mode="single-row",
@@ -566,7 +596,9 @@ elif menu == "KIB A (Tanah)":
           if "SKPD" in df_a.columns
           else ["Semua SKPD"]
       )
-      selected_skpd_a = st.selectbox("🏢 **Filter Berdasarkan SKPD:**", skpd_options_a)
+      selected_skpd_a = st.selectbox(
+          "🏢 **Filter Berdasarkan SKPD:**", skpd_options_a
+      )
 
       df_a_filtered = df_a.copy()
       if selected_skpd_a != "Semua SKPD":
@@ -709,7 +741,9 @@ elif menu == "KIB C (Gedung & Bangunan)":
           if "SKPD" in df_c.columns
           else ["Semua SKPD"]
       )
-      selected_skpd_c = st.selectbox("🏢 **Filter Berdasarkan SKPD:**", skpd_options_c)
+      selected_skpd_c = st.selectbox(
+          "🏢 **Filter Berdasarkan SKPD:**", skpd_options_c
+      )
 
       df_c_filtered = df_c.copy()
       if selected_skpd_c != "Semua SKPD":
