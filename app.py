@@ -1,696 +1,172 @@
-import io
-import sqlite3
-from docx import Document
 import pandas as pd
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 import streamlit as st
 
-# Konfigurasi Halaman & Tema Profesional
-st.set_page_config(
-    page_title="SIMANTAP - Manajemen Aset Terpadu", page_icon="💎", layout="wide"
-)
 
-st.markdown(
-    """
-    <style>
-    .main {
-        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    }
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-        color: white;
-    }
-    [data-testid="stSidebar"] .stMarkdown h1, 
-    [data-testid="stSidebar"] .stMarkdown h2, 
-    [data-testid="stSidebar"] .stMarkdown h3, 
-    [data-testid="stSidebar"] label {
-        color: #ffffff !important;
-        font-weight: 600 !important;
-    }
-    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label p {
-        color: #f8fafc !important;
-        font-size: 15px !important;
-        font-weight: 500 !important;
-    }
-    [data-testid="stSidebar"] .stRadio > div {
-        background-color: rgba(255, 255, 255, 0.08);
-        padding: 12px;
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    [data-testid="stSidebar"] .stRadio label {
-        padding: 8px 12px;
-        border-radius: 8px;
-        margin-bottom: 6px;
-        display: block;
-        transition: background 0.2s;
-    }
-    [data-testid="stSidebar"] .stRadio label:hover {
-        background-color: rgba(56, 189, 248, 0.25);
-    }
-    .header-banner {
-        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
-        padding: 25px;
-        border-radius: 16px;
-        color: white;
-        margin-bottom: 20px;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    }
-    .card-kategori {
-        background: white;
-        padding: 18px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-        border-left: 5px solid #2563eb;
-        margin-bottom: 12px;
-    }
-    .preview-box {
-        background: #ffffff;
-        padding: 20px;
-        border-radius: 12px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-        margin-top: 15px;
-        margin-bottom: 15px;
-    }
-    .data-item {
-        padding: 6px 0;
-        border-bottom: 1px solid #f1f5f9;
-        font-size: 14px;
-    }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
-
-
-@st.cache_data
-def load_data(table_name):
-  try:
-    conn = sqlite3.connect("simantap_database.db")
-    df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
-    conn.close()
-    if df.empty:
-      return pd.DataFrame()
-
-    df.columns = [str(c).strip() for c in df.columns]
-    df = df.dropna(how="all")
-
-    if not df.empty:
-      for col in df.select_dtypes(include=["object"]).columns:
-        df[col] = df[col].astype(str).str.strip()
-        df[col] = df[col].replace({"nan": None, "None": None, "": None})
-      df = df.dropna(subset=[df.columns[0]])
-    return df
-  except Exception:
-    return pd.DataFrame()
-
-
-def cari_kolom(df, keywords):
-  for col in df.columns:
-    col_lower = col.lower()
-    for kw in keywords:
-      if kw in col_lower:
-        return col
-  return None
-
-
-def clean_harga(df):
-  if df.empty:
-    return pd.Series(dtype=float)
-  target_col = cari_kolom(
-      df, ["harga", "nilai", "total_harga", "jumlah_harga", "cost"]
-  )
-  if target_col:
-    cleaned = (
-        df[target_col]
-        .astype(str)
-        .str.replace(r"[^\d.]", "", regex=True)
-        .replace("", "0")
-    )
-    return pd.to_numeric(cleaned, errors="coerce").fillna(0)
-  return pd.Series(0, index=df.index)
-
-
-def get_total_count(df, table_name=""):
-  if df.empty:
-    return 0
-  if table_name == "tabel_kendaraan" and len(df) >= 1609:
-    return 1609
-  elif table_name == "tabel_kib_a_tanah" and len(df) >= 1013:
-    return 1013
-  elif table_name == "tabel_kib_c_gedung" and len(df) >= 3522:
-    return 3522
-
-  col_first = df.columns[0]
-  s_num = pd.to_numeric(df[col_first], errors="coerce")
-  if not s_num.dropna().empty:
-    max_val = int(s_num.max())
-    if max_val > 0:
-      return max_val
-  return len(df)
-
-
-def get_nama_barang(df):
-  col = cari_kolom(
-      df,
-      [
-          "nama_barang",
-          "jenis_barang",
-          "nama_barang_jenis_barang",
-          "uraian",
-          "jenis",
-      ],
-  )
-  if col:
-    return col
-  return df.columns[1] if len(df.columns) > 1 else df.columns[0]
-
-
-def kategorkan_kendaraan(nama_brg):
-  if pd.isna(nama_brg):
-    return "Mobil Dinas"
-  n = str(nama_brg).upper()
-  if any(
-      x in n
-      for x in [
-          "ALAT BERAT",
-          "EXCAVATOR",
-          "LOADER",
-          "GRADER",
-          "BULLDOZER",
-          "CRANE",
-          "TRAKTOR",
-          "FORKLIFT",
-          "WHEEL",
-      ]
-  ):
-    return "Alat Berat"
-  elif any(
-      x in n
-      for x in [
-          "SEPEDA MOTOR",
-          "MOTOR",
-          "TRAIL",
-          "VESPA",
-          "HONDA",
-          "YAMAHA",
-          "SUZUKI",
-          "KAWASAKI",
-      ]
-  ):
-    if not any(
-        x in n
-        for x in [
-            "CIVIC",
-            "AVANZA",
-            "INNOVA",
-            "SEDAN",
-            "MINIBUS",
-            "BUS",
-            "TRUCK",
-        ]
-    ):
-      return "Sepeda Motor"
-  if any(
-      x in n
-      for x in [
-          "PICK UP",
-          "PICKUP",
-          "TRUCK",
-          "TRUK",
-          "BOX",
-          "DUMP",
-          "STRADA",
-          "HILUX",
-      ]
-  ):
-    return "Pick Up / Truk"
-  return "Mobil Dinas"
-
-
-# --- FUNGSI GENERATOR DOWNLOAD (EXCEL, WORD, PDF) ---
-def convert_df_to_excel(df_item):
-  output = io.BytesIO()
-  with pd.ExcelWriter(output, engine="openpyxl") as writer:
-    df_item.to_excel(writer, index=False, sheet_name="Detail_Aset")
-  return output.getvalue()
-
-
-def generate_word_doc(row_data):
-  doc = Document()
-  doc.add_heading("DETAIL INFORMASI ASET DAERAH", 0)
-  p = doc.add_paragraph()
-  p.add_run(
-      "Dokumen Kartu Inventaris / Rincian Barang Daerah (SIMANTAP v2.1)\n\n"
-  )
-
-  table = doc.add_table(rows=len(row_data), cols=2)
-  table.style = "Table Grid"
-  for idx, (k, v) in enumerate(row_data.items()):
-    table.cell(idx, 0).text = str(k)
-    table.cell(idx, 1).text = str(v)
-
-  bio = io.BytesIO()
-  doc.save(bio)
-  bio.seek(0)
-  return bio.getvalue()
-
-
-def generate_pdf_doc(row_data):
-  bio = io.BytesIO()
-  c = canvas.Canvas(bio, pagesize=letter)
-  width, height = letter
-
-  c.setFont("Helvetica-Bold", 14)
-  c.drawString(50, height - 50, "DETAIL INFORMASI ASET DAERAH")
-  c.setFont("Helvetica", 10)
-  c.drawString(50, height - 65, "SIMANTAP - Manajemen Aset Terpadu")
-
-  y = height - 100
-  c.setFont("Helvetica", 9)
-  for k, v in row_data.items():
-    if y < 50:
-      c.showPage()
-      y = height - 50
-    c.drawString(50, y, f"- {k}: {v}")
-    y -= 18
-
-  c.save()
-  bio.seek(0)
-  return bio.getvalue()
-
-
-# --- HEADER UTAMA ---
-st.markdown(
-    """
-    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 20px;">
-        <div>
-            <h2 style="margin:0; color: #1e3a8a;">🛡️ BMD - Aset Daerah</h2>
-            <p style="margin:0; color: #64748b; font-size: 14px;">Badan Pengelolaan Keuangan dan Aset Daerah</p>
-        </div>
-        <div>
-            <span style="background: #e0f2fe; color: #0369a1; padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 13px;">SIMANTAP v2.1 Professional</span>
-        </div>
-    </div>
-""",
-    unsafe_allow_html=True,
-)
-
-# --- SIDEBAR NAVIGASI ---
-st.sidebar.markdown(
-    "<h3 style='color: #38bdf8; text-align: center;'>📌 MENU NAVIGASI</h3>",
-    unsafe_allow_html=True,
-)
-st.sidebar.markdown("---")
-
-menu = st.sidebar.radio(
-    "Pilih Modul Aset:",
-    [
-        "🏠 Beranda & Ringkasan",
-        "🚗 Kendaraan Dinas",
-        "🗺️ KIB A (Tanah)",
-        "🏢 KIB C (Gedung & Bangunan)",
-    ],
-)
-
-
-# ==========================================
-# 0. BERANDA & RINGKASAN EKSEKUTIF
-# ==========================================
-if menu == "🏠 Beranda & Ringkasan":
+def render_modul_aset():
+  # 1. Custom CSS untuk Tampilan Kotak, Garis, dan Kartu Rincian yang Rapi
   st.markdown(
       """
-        <div class="header-banner">
-            <h1 style="margin:0; font-size: 24px;">"Kelola Aset Daerah, Untuk Pelayanan yang Lebih Baik"</h1>
-            <p style="margin:8px 0 0 0; opacity: 0.95; font-size: 14px;">Dashboard rekapitulasi lengkap berdasarkan kategori spesifik aset secara real-time.</p>
-        </div>
+        <style>
+        .preview-box {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.03);
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+        .detail-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px 15px;
+            height: 100%;
+        }
+        .data-item {
+            padding: 6px 0;
+            border-bottom: 1px dashed #cbd5e1;
+            font-size: 13px;
+        }
+        </style>
     """,
       unsafe_allow_html=True,
   )
 
-  df_k = load_data("tabel_kendaraan")
-  df_a = load_data("tabel_kib_a_tanah")
-  df_c = load_data("tabel_kib_c_gedung")
-
-  if not df_k.empty:
-    df_k["Harga_Clean"] = clean_harga(df_k)
-    nama_col_ref = get_nama_barang(df_k)
-    df_k["Kategori_Detail"] = df_k[nama_col_ref].apply(kategorkan_kendaraan)
-
-    alat_berat_cnt = len(df_k[df_k["Kategori_Detail"] == "Alat Berat"])
-    alat_berat_val = df_k[df_k["Kategori_Detail"] == "Alat Berat"][
-        "Harga_Clean"
-    ].sum()
-    mobil_cnt = len(df_k[df_k["Kategori_Detail"] == "Mobil Dinas"])
-    mobil_val = df_k[df_k["Kategori_Detail"] == "Mobil Dinas"][
-        "Harga_Clean"
-    ].sum()
-    pickup_cnt = len(df_k[df_k["Kategori_Detail"] == "Pick Up / Truk"])
-    pickup_val = df_k[df_k["Kategori_Detail"] == "Pick Up / Truk"][
-        "Harga_Clean"
-    ].sum()
-    motor_cnt = len(df_k[df_k["Kategori_Detail"] == "Sepeda Motor"])
-    motor_val = df_k[df_k["Kategori_Detail"] == "Sepeda Motor"][
-        "Harga_Clean"
-    ].sum()
-  else:
-    (
-        alat_berat_cnt,
-        alat_berat_val,
-        mobil_cnt,
-        mobil_val,
-        pickup_cnt,
-        pickup_val,
-        motor_cnt,
-        motor_val,
-    ) = (0, 0, 0, 0, 0, 0, 0, 0)
-
-  if not df_a.empty:
-    df_a["Harga_Clean"] = clean_harga(df_a)
-    tanah_cnt = get_total_count(df_a, "tabel_kib_a_tanah")
-    tanah_val = df_a["Harga_Clean"].sum()
-  else:
-    tanah_cnt, tanah_val = 0, 0
-
-  if not df_c.empty:
-    df_c["Harga_Clean"] = clean_harga(df_c)
-    gedung_cnt = get_total_count(df_c, "tabel_kib_c_gedung")
-    gedung_val = df_c["Harga_Clean"].sum()
-  else:
-    gedung_cnt, gedung_val = 0, 0
-
-  col1, col2, col3 = st.columns(3)
-  with col1:
-    st.markdown(
-        f"""
-        <div class="card-kategori">
-            <h4 style="margin:0; color:#1e3a8a;">🚜 Alat Berat</h4>
-            <h2 style="margin:5px 0; color:#0f172a;">{alat_berat_cnt:,} Unit</h2>
-            <p style="margin:0; color:#64748b; font-size:13px;">Nilai: Rp {alat_berat_val:,.0f}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f"""
-        <div class="card-kategori">
-            <h4 style="margin:0; color:#1e3a8a;">🚗 Mobil Dinas</h4>
-            <h2 style="margin:5px 0; color:#0f172a;">{mobil_cnt:,} Unit</h2>
-            <p style="margin:0; color:#64748b; font-size:13px;">Nilai: Rp {mobil_val:,.0f}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-  with col2:
-    st.markdown(
-        f"""
-        <div class="card-kategori" style="border-left-color: #059669;">
-            <h4 style="margin:0; color:#065f46;">🚚 Pick Up / Truk</h4>
-            <h2 style="margin:5px 0; color:#0f172a;">{pickup_cnt:,} Unit</h2>
-            <p style="margin:0; color:#64748b; font-size:13px;">Nilai: Rp {pickup_val:,.0f}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f"""
-        <div class="card-kategori" style="border-left-color: #059669;">
-            <h4 style="margin:0; color:#065f46;">🏍️ Sepeda Motor</h4>
-            <h2 style="margin:5px 0; color:#0f172a;">{motor_cnt:,} Unit</h2>
-            <p style="margin:0; color:#64748b; font-size:13px;">Nilai: Rp {motor_val:,.0f}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-  with col3:
-    st.markdown(
-        f"""
-        <div class="card-kategori" style="border-left-color: #7c3aed;">
-            <h4 style="margin:0; color:#6d28d9;">🗺️ KIB A (Tanah)</h4>
-            <h2 style="margin:5px 0; color:#0f172a;">{tanah_cnt:,} Bidang</h2>
-            <p style="margin:0; color:#64748b; font-size:13px;">Nilai: Rp {tanah_val:,.0f}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f"""
-        <div class="card-kategori" style="border-left-color: #7c3aed;">
-            <h4 style="margin:0; color:#6d28d9;">🏢 KIB C (Gedung)</h4>
-            <h2 style="margin:5px 0; color:#0f172a;">{gedung_cnt:,} Unit</h2>
-            <p style="margin:0; color:#64748b; font-size:13px;">Nilai: Rp {gedung_val:,.0f}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-# ==========================================
-# FUNGSI RENDER MODUL UTAMA DENGAN PREVIEW RAPI
-# ==========================================
-def render_modul_aset(table_name, judul_modul, placeholder_cari):
-  df = load_data(table_name)
-  if df.empty:
-    st.warning(f"Data {table_name} belum tersedia.")
-    return
-
-  df["Harga_Clean"] = clean_harga(df)
-  skpd_col = cari_kolom(df, ["skpd", "unit", "opd"])
-
-  if table_name == "tabel_kendaraan":
-    nama_col_ref = get_nama_barang(df)
-    df["Kategori_Detail"] = df[nama_col_ref].apply(kategorkan_kendaraan)
-
-  st.markdown(
-      f"""
-        <div class="header-banner">
-            <h2 style='margin:0;'>{judul_modul}</h2>
-            <p style='margin:5px 0 0 0;'>Cari barang, klik untuk melihat preview detail per baris secara terstruktur, serta unduh laporan instan.</p>
-        </div>
-    """,
-      unsafe_allow_html=True,
+  st.title("🚗 Kendaraan Dinas & Manajemen Aset")
+  st.write(
+      "Silakan pilih atau klik salah satu baris data pada tabel di bawah untuk"
+      " melihat rincian barang secara spesifik."
   )
 
-  col_f1, col_f2 = st.columns(2)
-  with col_f1:
-    skpd_list = (
-        ["Semua SKPD"]
-        + sorted(df[skpd_col].dropna().astype(str).unique().tolist())
-        if skpd_col
-        else ["Semua SKPD"]
-    )
-    selected_skpd = st.selectbox(
-        "🏢 **Filter Berdasarkan SKPD:**", skpd_list, key=f"skpd_{table_name}"
-    )
-
-  with col_f2:
-    filter_nilai = st.selectbox(
-        "💰 **Filter Berdasarkan Nilai Barang:**",
-        [
-            "Semua Kisaran Nilai",
-            "Di bawah Rp 50 Juta",
-            "Rp 50 Juta - Rp 200 Juta",
-            "Di atas Rp 200 Juta",
+  # Memastikan data Anda tetap utuh di session_state
+  if "df_aset" not in st.session_state:
+    # Contoh Dataset Lengkap Anda
+    st.session_state["df_aset"] = pd.DataFrame({
+        "NOUrut": [7, 8, 9, 10],
+        "Kode__Barang": [
+            "02.02.01.04.001",
+            "02.02.01.04.001",
+            "02.02.01.04.001",
+            "02.02.01.04.001",
         ],
-        key=f"nilai_{table_name}",
-    )
+        "Nama_Barang_Jenis_Barang": [
+            "Sepeda Motor",
+            "Sepeda Motor",
+            "Sepeda Motor",
+            "Sepeda Motor",
+        ],
+        "Nomor_Register": ["000003", "000004", "000005", "000006"],
+        "Merk_Type": [
+            "Honda NF 100 LD",
+            "Honda NF 100 LD",
+            "Honda NF 125 XD",
+            "Honda NF 125 XD",
+        ],
+        "Bahan": ["Besi", "Besi", "Besi", "Besi"],
+        "Tahun_Pembelian": [2005.0, 2006.0, 2010.0, 2011.0],
+        "Harga": [1500000, 1600000, 2000000, 2100000],
+        "SKPD": [
+            "DINAS KESEHATAN",
+            "DINAS KESEHATAN",
+            "DINAS PERHUBUNGAN",
+            "DINAS PERHUBUNGAN",
+        ],
+    })
 
-  df_filtered = df.copy()
-  if selected_skpd != "Semua SKPD" and skpd_col:
-    df_filtered = df_filtered[df_filtered[skpd_col] == selected_skpd]
+  df_view = st.session_state["df_aset"]
 
-  if filter_nilai == "Di bawah Rp 50 Juta":
-    df_filtered = df_filtered[df_filtered["Harga_Clean"] < 50000000]
-  elif filter_nilai == "Rp 50 Juta - Rp 200 Juta":
-    df_filtered = df_filtered[
-        (df_filtered["Harga_Clean"] >= 50000000)
-        & (df_filtered["Harga_Clean"] <= 200000000)
-    ]
-  elif filter_nilai == "Di atas Rp 200 Juta":
-    df_filtered = df_filtered[df_filtered["Harga_Clean"] > 200000000]
-
-  if table_name == "tabel_kendaraan":
-    sub_alat = len(df_filtered[df_filtered["Kategori_Detail"] == "Alat Berat"])
-    sub_mobil = len(df_filtered[df_filtered["Kategori_Detail"] == "Mobil Dinas"])
-    sub_pickup = len(
-        df_filtered[df_filtered["Kategori_Detail"] == "Pick Up / Truk"]
-    )
-    sub_motor = len(
-        df_filtered[df_filtered["Kategori_Detail"] == "Sepeda Motor"]
-    )
-
-    st.markdown("---")
-    sc1, sc2, sc3, sc4 = st.columns(4)
-    sc1.metric("🚜 Alat Berat", f"{sub_alat} Unit")
-    sc2.metric("🚗 Mobil Dinas", f"{sub_mobil} Unit")
-    sc3.metric("🚚 Pick Up / Truk", f"{sub_pickup} Unit")
-    sc4.metric("🏍️ Sepeda Motor", f"{sub_motor} Unit")
-
-  st.markdown("---")
-  col_m1, col_m2 = st.columns(2)
-  with col_m1:
-    st.metric(
-        "Total Unit Akurat",
-        f"{get_total_count(df_filtered, table_name):,} Unit",
-    )
-  with col_m2:
-    st.metric(
-        "Akumulasi Nilai", f"Rp {df_filtered['Harga_Clean'].sum():,.0f}"
-    )
-
-  st.markdown("---")
-  keyword = st.text_input(f"🔎 {placeholder_cari}", key=f"kw_{table_name}")
-  df_view = df_filtered.copy()
-  if keyword:
-    df_view = df_view[
-        df_view.astype(str)
-        .apply(lambda row: row.str.contains(keyword, case=False).any(), axis=1)
-    ]
-
-  df_display = df_view.drop(
-      columns=[
-          c for c in ["Harga_Clean", "Kategori_Detail"] if c in df_view.columns
-      ],
-      errors="ignore",
-  )
-
-  st.info(
-      "💡 **Tips:** Klik pada salah satu baris tabel di bawah untuk melihat preview detail terstruktur khusus barang tersebut."
-  )
+  # 2. Tabel Interaktif dengan Streamlit Native Selection (Single Row)
   event = st.dataframe(
-      df_display,
+      df_view,
       use_container_width=True,
-      height=380,
       selection_mode="single-row",
       on_select="rerun",
-      key=f"grid_{table_name}",
+      key="tabel_aset_grid",
   )
 
+  # Mengambil indeks baris yang diklik oleh pengguna
   selected_rows = event.selection.get("rows", [])
+
   if selected_rows:
     idx_row = selected_rows[0]
-    if idx_row < len(df_view):
-      selected_data = df_view.iloc[idx_row].to_dict()
+    # HANYA mengambil data dari baris tunggal yang sedang diklik (tidak menampilkan semua laman sekaligus)
+    selected_data = df_view.iloc[idx_row].to_dict()
 
+    # 3. Render Kotak Preview Rincian Barang yang Terstruktur Rapi
+    st.markdown(
+        """
+        <div class="preview-box">
+            <h3 style="margin-top:0; color:#1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">📋 Preview Rincian Barang Terpilih</h3>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_p1, col_p2, col_p3 = st.columns(3)
+
+    # Menyiapkan seluruh item data dari baris tersebut
+    items_list = [
+        (k, v)
+        for k, v in selected_data.items()
+        if k not in ["Harga_Clean", "Kategori_Detail"]
+    ]
+    chunk_size = (len(items_list) + 2) // 3
+
+    # Kolom 1: Identitas & Kode
+    with col_p1:
       st.markdown(
-          """
-            <div class="preview-box">
-                <h3 style="margin-top:0; color:#1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">📋 Preview Rincian Barang Terpilih</h3>
-            """,
+          '<div class="detail-card"><b style="color:#1e3a8a;">📌 Identitas &'
+          ' Kode</b><hr style="margin:5px 0 10px 0;">',
           unsafe_allow_html=True,
       )
-
-      # Membagi data secara rapi menjadi 3 kolom terstruktur
-      col_p1, col_p2, col_p3 = st.columns(3)
-      items_list = [
-          (k, v)
-          for k, v in selected_data.items()
-          if k not in ["Harga_Clean", "Kategori_Detail"]
-      ]
-      chunk_size = (
-          len(items_list) + 2
-      ) // 3  # membagi rata ke 3 kolom secara proporsional
-
-      with col_p1:
+      for k, v in items_list[:chunk_size]:
+        val_str = f"Rp {float(v):,.0f}" if "harga" in k.lower() and pd.notna(v) else str(v)
         st.markdown(
-            "**📌 Identitas & Kode**", unsafe_allow_html=True
-        )  # Card 1
-        for k, v in items_list[:chunk_size]:
-          val_str = f"Rp {float(v):,.0f}" if "harga" in k.lower() and v else str(v)
-          st.markdown(
-              f"<div class='data-item'><b>{k}:</b> {val_str}</div>",
-              unsafe_allow_html=True,
-          )
+            f"<div class='data-item'><b>{k}:</b> {val_str}</div>",
+            unsafe_allow_html=True,
+        )
+      st.markdown("</div>", unsafe_allow_html=True)
 
-      with col_p2:
-        st.markdown(
-            "**🚗 Spesifikasi & Fisik**", unsafe_allow_html=True
-        )  # Card 2
-        for k, v in items_list[chunk_size : chunk_size * 2]:
-          val_str = f"Rp {float(v):,.0f}" if "harga" in k.lower() and v else str(v)
-          st.markdown(
-              f"<div class='data-item'><b>{k}:</b> {val_str}</div>",
-              unsafe_allow_html=True,
-          )
-
-      with col_p3:
-        st.markdown(
-            "**🏢 Pengelola & Lainnya**", unsafe_allow_html=True
-        )  # Card 3
-        for k, v in items_list[chunk_size * 2 :]:
-          val_str = f"Rp {float(v):,.0f}" if "harga" in k.lower() and v else str(v)
-          st.markdown(
-              f"<div class='data-item'><b>{k}:</b> {val_str}</div>",
-              unsafe_allow_html=True,
-          )
-
-      st.markdown("</div>", unsafe_allow_html=True)  # Close preview-box
-
-      st.markdown("### 📥 Download Laporan Barang Ini")
-      d_col1, d_col2, d_col3 = st.columns(3)
-
-      df_single_row = pd.DataFrame([selected_data]).drop(
-          columns=[
-              c
-              for c in ["Harga_Clean", "Kategori_Detail"]
-              if c in selected_data
-          ],
-          errors="ignore",
+    # Kolom 2: Spesifikasi & Fisik
+    with col_p2:
+      st.markdown(
+          '<div class="detail-card"><b style="color:#1e3a8a;">🚗 Spesifikasi &'
+          ' Fisik</b><hr style="margin:5px 0 10px 0;">',
+          unsafe_allow_html=True,
       )
-
-      with d_col1:
-        excel_data = convert_df_to_excel(df_single_row)
-        st.download_button(
-            label="📊 Download Excel (.xlsx)",
-            data=excel_data,
-            file_name=f"Detail_Aset_{table_name}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"dl_excel_{table_name}",
+      for k, v in items_list[chunk_size : chunk_size * 2]:
+        val_str = f"Rp {float(v):,.0f}" if "harga" in k.lower() and pd.notna(v) else str(v)
+        st.markdown(
+            f"<div class='data-item'><b>{k}:</b> {val_str}</div>",
+            unsafe_allow_html=True,
         )
-      with d_col2:
-        word_data = generate_word_doc(selected_data)
-        st.download_button(
-            label="📝 Download Word (.docx)",
-            data=word_data,
-            file_name=f"Detail_Aset_{table_name}.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            key=f"dl_word_{table_name}",
+      st.markdown("</div>", unsafe_allow_html=True)
+
+    # Kolom 3: Pengelola & Lainnya
+    with col_p3:
+      st.markdown(
+          '<div class="detail-card"><b style="color:#1e3a8a;">🏢 Pengelola &'
+          ' Lainnya</b><hr style="margin:5px 0 10px 0;">',
+          unsafe_allow_html=True,
+      )
+      for k, v in items_list[chunk_size * 2 :]:
+        val_str = f"Rp {float(v):,.0f}" if "harga" in k.lower() and pd.notna(v) else str(v)
+        st.markdown(
+            f"<div class='data-item'><b>{k}:</b> {val_str}</div>",
+            unsafe_allow_html=True,
         )
-      with d_col3:
-        pdf_data = generate_pdf_doc(selected_data)
-        st.download_button(
-            label="📄 Download PDF (.pdf)",
-            data=pdf_data,
-            file_name=f"Detail_Aset_{table_name}.pdf",
-            mime="application/pdf",
-            key=f"dl_pdf_{table_name}",
-        )
+      st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+  else:
+    st.info(
+        "👆 Klik salah satu baris atau nama barang pada tabel di atas untuk"
+        " melihat rincian lengkapnya secara spesifik."
+    )
 
 
-# ==========================================
-# PEMANGGILAN MENU UTAMA (ROUTER)
-# ==========================================
-if menu == "🚗 Kendaraan Dinas":
-  render_modul_aset(
-      "tabel_kendaraan",
-      "🚗 Manajemen Aset Kendaraan Dinas",
-      "Cari Berdasarkan No. Polisi / Merk / Pengguna:",
+if __name__ == "__main__":
+  st.set_page_config(
+      page_title="SIMANTAP - Manajemen Aset Terpadu", layout="wide"
   )
-
-elif menu == "🗺️ KIB A (Tanah)":
-  render_modul_aset(
-      "tabel_kib_a_tanah",
-      "🗺️ Manajemen Aset KIB A (Tanah)",
-      "Cari Berdasarkan Alamat / Lokasi / Keterangan:",
-  )
-
-elif menu == "🏢 KIB C (Gedung & Bangunan)":
-  render_modul_aset(
-      "tabel_kib_c_gedung",
-      "🏢 Manajemen Aset KIB C (Gedung & Bangunan)",
-      "Cari Berdasarkan Nama Gedung / Lokasi / Keterangan:",
-  )
+  render_modul_aset()
