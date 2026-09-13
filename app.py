@@ -17,28 +17,39 @@ st.markdown(
     .main {
         background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
     }
+    /* Sidebar Styling dengan Warna Kontras agar Terlihat Jelas */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
         color: white;
     }
-    [data-testid="stSidebar"] .stMarkdown h1, [data-testid="stSidebar"] .stMarkdown h2, [data-testid="stSidebar"] .stMarkdown h3, [data-testid="stSidebar"] label {
-        color: #f8fafc !important;
+    [data-testid="stSidebar"] .stMarkdown h1, 
+    [data-testid="stSidebar"] .stMarkdown h2, 
+    [data-testid="stSidebar"] .stMarkdown h3, 
+    [data-testid="stSidebar"] label {
+        color: #ffffff !important;
+        font-weight: 600 !important;
     }
-    /* Styling khusus untuk pilihan radio button menu agar memiliki warna latar belakang */
+    /* Styling khusus teks radio button agar terang dan tidak tersembunyi */
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label p {
+        color: #f8fafc !important;
+        font-size: 15px !important;
+        font-weight: 500 !important;
+    }
     [data-testid="stSidebar"] .stRadio > div {
-        background-color: rgba(255, 255, 255, 0.05);
-        padding: 10px;
-        border-radius: 10px;
+        background-color: rgba(255, 255, 255, 0.08);
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
     [data-testid="stSidebar"] .stRadio label {
-        padding: 6px 10px;
-        border-radius: 6px;
-        margin-bottom: 4px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        margin-bottom: 6px;
         display: block;
         transition: background 0.2s;
     }
     [data-testid="stSidebar"] .stRadio label:hover {
-        background-color: rgba(56, 189, 248, 0.2);
+        background-color: rgba(56, 189, 248, 0.25);
     }
     .header-banner {
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
@@ -73,10 +84,8 @@ def load_data(table_name):
     conn = sqlite3.connect("simantap_database.db")
     df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
     conn.close()
-    # Membersihkan baris kosong atau baris NaN sisa ekspor agar jumlah baris presisi
     df = df.dropna(how="all")
     if not df.empty:
-      # Pastikan kolom string tidak memiliki spasi berlebih pemicu selisih baris
       for col in df.select_dtypes(include=["object"]).columns:
         df[col] = df[col].astype(str).str.strip()
         df[col] = df[col].replace({"nan": None, "None": None, "": None})
@@ -113,6 +122,7 @@ def kategorkan_kendaraan(nama_brg):
     return "Mobil Dinas"
   n = str(nama_brg).upper()
 
+  # Deteksi spesifik berdasarkan penamaan baku aset daerah
   if any(
       x in n
       for x in [
@@ -124,28 +134,55 @@ def kategorkan_kendaraan(nama_brg):
           "CRANE",
           "TRAKTOR",
           "FORKLIFT",
+          "WHEEL",
+          "BULD",
       ]
   ):
     return "Alat Berat"
   elif any(
       x in n
       for x in [
-          "MOTOR",
           "SEPEDA MOTOR",
+          "MOTOR",
           "TRAIL",
           "VESPA",
-          "YAMAHA",
           "HONDA",
+          "YAMAHA",
           "SUZUKI",
           "KAWASAKI",
+          "KX",
+          "CRF",
       ]
   ):
+    # Pengecualian agar kendaraan roda 4 bermerek tidak masuk motor
     if not any(
-        x in n for x in ["CIVIC", "AVANZA", "INNOVA", "SEDAN", "MINIBUS", "BUS"]
+        x in n
+        for x in [
+            "CIVIC",
+            "AVANZA",
+            "INNOVA",
+            "SEDAN",
+            "MINIBUS",
+            "BUS",
+            "PICK",
+            "TRUCK",
+        ]
     ):
       return "Sepeda Motor"
   if any(
-      x in n for x in ["PICK UP", "TRUCK", "TRUK", "BOX", "DUMP", "STRADA", "HILUX"]
+      x in n
+      for x in [
+          "PICK UP",
+          "PICKUP",
+          "TRUCK",
+          "TRUK",
+          "BOX",
+          "DUMP",
+          "STRADA",
+          "HILUX",
+          "LIGHT TRUCK",
+          "TOWING",
+      ]
   ):
     return "Pick Up / Truk"
 
@@ -168,7 +205,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- SIDEBAR NAVIGASI (Terbuka Langsung dengan Radio Button Berwarna) ---
+# --- SIDEBAR NAVIGASI (Dengan Ikon Gambar dan Teks Terang Terbuka) ---
 st.sidebar.markdown(
     "<h3 style='color: #38bdf8; text-align: center;'>📌 MENU NAVIGASI</h3>",
     unsafe_allow_html=True,
@@ -178,10 +215,10 @@ st.sidebar.markdown("---")
 menu = st.sidebar.radio(
     "Pilih Modul Aset:",
     [
-        "Beranda & Ringkasan",
-        "Kendaraan Dinas",
-        "KIB A (Tanah)",
-        "KIB C (Gedung & Bangunan)",
+        "🏠 Beranda & Ringkasan",
+        "🚗 Kendaraan Dinas",
+        "🗺️ KIB A (Tanah)",
+        "🏢 KIB C (Gedung & Bangunan)",
     ],
 )
 
@@ -189,7 +226,7 @@ menu = st.sidebar.radio(
 # ==========================================
 # 0. BERANDA & RINGKASAN EKSEKUTIF
 # ==========================================
-if menu == "Beranda & Ringkasan":
+if menu == "🏠 Beranda & Ringkasan":
   st.markdown(
       """
         <div class="header-banner">
@@ -354,7 +391,7 @@ if menu == "Beranda & Ringkasan":
 # ==========================================
 # 1. MENU KENDARAAN DINAS
 # ==========================================
-elif menu == "Kendaraan Dinas":
+elif menu == "🚗 Kendaraan Dinas":
   df = load_data("tabel_kendaraan")
   if df.empty:
     st.warning("Data tabel_kendaraan belum tersedia.")
@@ -516,7 +553,7 @@ elif menu == "Kendaraan Dinas":
 # ==========================================
 # 2. MENU KIB A (TANAH)
 # ==========================================
-elif menu == "KIB A (Tanah)":
+elif menu == "🗺️ KIB A (Tanah)":
   df_a = load_data("tabel_kib_a_tanah")
   if df_a.empty:
     st.warning("Belum ada data untuk tabel KIB A (Tanah).")
@@ -661,7 +698,7 @@ elif menu == "KIB A (Tanah)":
 # ==========================================
 # 3. MENU KIB C (GEDUNG & BANGUNAN)
 # ==========================================
-elif menu == "KIB C (Gedung & Bangunan)":
+elif menu == "🏢 KIB C (Gedung & Bangunan)":
   df_c = load_data("tabel_kib_c_gedung")
   if df_c.empty:
     st.warning("Belum ada data untuk tabel KIB C (Gedung & Bangunan).")
