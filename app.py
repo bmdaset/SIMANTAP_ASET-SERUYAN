@@ -579,18 +579,22 @@ def render_modul_aset(table_name, judul_modul, placeholder_cari):
           unsafe_allow_html=True,
       )
 
-      col_p1, col_p2 = st.columns(2)
-      items_list = list(selected_data.items())
-      half = len(items_list) // 2
+      # Tabel Rincian Bergaris dan Rapi (Menampilkan Semua Kolom/Laman Data)
+      preview_df = pd.DataFrame(
+          list(selected_data.items()), columns=["Atribut / Kolom", "Keterangan"]
+      )
+      preview_df = preview_df[
+          ~preview_df["Atribut / Kolom"].isin(
+              ["Harga_Clean", "Kategori_Detail"]
+          )
+      ]
 
-      with col_p1:
-        for k, v in items_list[:half]:
-          if k not in ["Harga_Clean", "Kategori_Detail"]:
-            st.text(f"{k}: {v}")
-      with col_p2:
-        for k, v in items_list[half:]:
-          if k not in ["Harga_Clean", "Kategori_Detail"]:
-            st.text(f"{k}: {v}")
+      st.dataframe(
+          preview_df,
+          use_container_width=True,
+          height=400,
+          hide_index=True,
+      )
 
       st.markdown("### 📥 Download Laporan Barang Ini")
       d_col1, d_col2, d_col3 = st.columns(3)
