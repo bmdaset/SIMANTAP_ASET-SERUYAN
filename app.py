@@ -24,6 +24,22 @@ st.markdown(
     [data-testid="stSidebar"] .stMarkdown h1, [data-testid="stSidebar"] .stMarkdown h2, [data-testid="stSidebar"] .stMarkdown h3, [data-testid="stSidebar"] label {
         color: #f8fafc !important;
     }
+    /* Styling khusus untuk pilihan radio button menu agar memiliki warna latar belakang */
+    [data-testid="stSidebar"] .stRadio > div {
+        background-color: rgba(255, 255, 255, 0.05);
+        padding: 10px;
+        border-radius: 10px;
+    }
+    [data-testid="stSidebar"] .stRadio label {
+        padding: 6px 10px;
+        border-radius: 6px;
+        margin-bottom: 4px;
+        display: block;
+        transition: background 0.2s;
+    }
+    [data-testid="stSidebar"] .stRadio label:hover {
+        background-color: rgba(56, 189, 248, 0.2);
+    }
     .header-banner {
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
         padding: 30px;
@@ -57,8 +73,14 @@ def load_data(table_name):
     conn = sqlite3.connect("simantap_database.db")
     df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
     conn.close()
-    # Membersihkan baris kosong agar jumlah baris akurat tanpa selisih
+    # Membersihkan baris kosong atau baris NaN sisa ekspor agar jumlah baris presisi
     df = df.dropna(how="all")
+    if not df.empty:
+      # Pastikan kolom string tidak memiliki spasi berlebih pemicu selisih baris
+      for col in df.select_dtypes(include=["object"]).columns:
+        df[col] = df[col].astype(str).str.strip()
+        df[col] = df[col].replace({"nan": None, "None": None, "": None})
+      df = df.dropna(subset=[df.columns[0]])
     return df
   except Exception:
     return pd.DataFrame()
@@ -146,15 +168,15 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- SIDEBAR NAVIGASI ---
+# --- SIDEBAR NAVIGASI (Terbuka Langsung dengan Radio Button Berwarna) ---
 st.sidebar.markdown(
     "<h3 style='color: #38bdf8; text-align: center;'>📌 MENU NAVIGASI</h3>",
     unsafe_allow_html=True,
 )
 st.sidebar.markdown("---")
 
-menu = st.sidebar.selectbox(
-    "Pilih Modul Aset",
+menu = st.sidebar.radio(
+    "Pilih Modul Aset:",
     [
         "Beranda & Ringkasan",
         "Kendaraan Dinas",
