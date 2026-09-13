@@ -17,7 +17,6 @@ st.markdown(
     .main {
         background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
     }
-    /* Sidebar Styling dengan Warna Kontras agar Terlihat Jelas */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
         color: white;
@@ -29,7 +28,6 @@ st.markdown(
         color: #ffffff !important;
         font-weight: 600 !important;
     }
-    /* Styling khusus teks radio button agar terang dan tidak tersembunyi */
     [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label p {
         color: #f8fafc !important;
         font-size: 15px !important;
@@ -96,11 +94,14 @@ def load_data(table_name):
 
 
 def clean_harga(df, possible_cols=["Harga", "Nilai", "Total_Harga"]):
+  if df.empty:
+    return pd.Series(dtype=float)
   target_col = None
   for col in possible_cols:
     if col in df.columns:
       target_col = col
       break
+  if not target_col:
     for c in df.columns:
       if any(kw in c.lower() for kw in ["harga", "nilai", "cost"]):
         target_col = c
@@ -195,7 +196,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- SIDEBAR NAVIGASI (Dengan Ikon Gambar/Emoji dan Teks Terang) ---
+# --- SIDEBAR NAVIGASI ---
 st.sidebar.markdown(
     "<h3 style='color: #38bdf8; text-align: center;'>📌 MENU NAVIGASI</h3>",
     unsafe_allow_html=True,
@@ -269,13 +270,13 @@ if menu == "🏠 Beranda & Ringkasan":
     ) = (0, 0, 0, 0, 0, 0, 0, 0)
 
   tanah_cnt = len(df_a) if not df_a.empty else 0
-  tanah_val = df_a["Harga_Clean"].sum() if not df_a.empty else 0
+  tanah_val = 0
   if not df_a.empty:
     df_a["Harga_Clean"] = clean_harga(df_a)
     tanah_val = df_a["Harga_Clean"].sum()
 
   gedung_cnt = len(df_c) if not df_c.empty else 0
-  gedung_val = df_c["Harga_Clean"].sum() if not df_c.empty else 0
+  gedung_val = 0
   if not df_c.empty:
     df_c["Harga_Clean"] = clean_harga(df_c)
     gedung_val = df_c["Harga_Clean"].sum()
@@ -349,7 +350,7 @@ if menu == "🏠 Beranda & Ringkasan":
 
 
 # ==========================================
-# 1. MENU KENDARAAN DINAS (DENGAN FILTER NILAI BARANG)
+# 1. MENU KENDARAAN DINAS
 # ==========================================
 elif menu == "🚗 Kendaraan Dinas":
   df = load_data("tabel_kendaraan")
@@ -368,7 +369,6 @@ elif menu == "🚗 Kendaraan Dinas":
         unsafe_allow_html=True,
     )
 
-    # Filter SKPD & Range Nilai Barang
     col_f1, col_f2 = st.columns(2)
     with col_f1:
       skpd_list = (
@@ -428,7 +428,7 @@ elif menu == "🚗 Kendaraan Dinas":
 
 
 # ==========================================
-# 2. MENU KIB A (TANAH) (DENGAN FILTER NILAI BARANG)
+# 2. MENU KIB A (TANAH)
 # ==========================================
 elif menu == "🗺️ KIB A (Tanah)":
   df_a = load_data("tabel_kib_a_tanah")
@@ -508,7 +508,7 @@ elif menu == "🗺️ KIB A (Tanah)":
 
 
 # ==========================================
-# 3. MENU KIB C (GEDUNG & BANGUNAN) (DENGAN FILTER NILAI BARANG)
+# 3. MENU KIB C (GEDUNG & BANGUNAN)
 # ==========================================
 elif menu == "🏢 KIB C (Gedung & Bangunan)":
   df_c = load_data("tabel_kib_c_gedung")
