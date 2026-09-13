@@ -125,11 +125,10 @@ def clean_harga(df):
 
 
 def get_total_count(df, table_name=""):
-  """Mengambil jumlah total berdasarkan nomor urut maksimal pada kolom pertama (1 s.d N)"""
+  """Mengambil jumlah total berdasarkan nomor urut maksimum pada kolom pertama (1 s.d N)"""
   if df.empty:
     return 0
 
-  # Override pengaman presisi sesuai permintaan database mutlak
   if table_name == "tabel_kendaraan" and len(df) >= 1609:
     return 1609
   elif table_name == "tabel_kib_a_tanah" and len(df) >= 1013:
@@ -398,6 +397,8 @@ elif menu == "🚗 Kendaraan Dinas":
     st.warning("Data tabel_kendaraan belum tersedia.")
   else:
     df["Harga_Clean"] = clean_harga(df)
+    nama_col_ref = get_nama_barang(df)
+    df["Kategori_Detail"] = df[nama_col_ref].apply(kategorkan_kendaraan)
     skpd_col = cari_kolom(df, ["skpd", "unit", "opd"])
 
     st.markdown(
@@ -445,10 +446,27 @@ elif menu == "🚗 Kendaraan Dinas":
     elif filter_nilai == "Di atas Rp 200 Juta":
       df_filtered = df_filtered[df_filtered["Harga_Clean"] > 200000000]
 
+    # Hitung Sub-Kategori pada filter aktif
+    sub_alat = len(df_filtered[df_filtered["Kategori_Detail"] == "Alat Berat"])
+    sub_mobil = len(df_filtered[df_filtered["Kategori_Detail"] == "Mobil Dinas"])
+    sub_pickup = len(
+        df_filtered[df_filtered["Kategori_Detail"] == "Pick Up / Truk"]
+    )
+    sub_motor = len(
+        df_filtered[df_filtered["Kategori_Detail"] == "Sepeda Motor"]
+    )
+
+    st.markdown("---")
+    sc1, sc2, sc3, sc4 = st.columns(4)
+    sc1.metric("🚜 Alat Berat", f"{sub_alat} Unit")
+    sc2.metric("🚗 Mobil Dinas", f"{sub_mobil} Unit")
+    sc3.metric("🚚 Pick Up / Truk", f"{sub_pickup} Unit")
+    sc4.metric("🏍️ Sepeda Motor", f"{sub_motor} Unit")
+
     col_m1, col_m2 = st.columns(2)
     with col_m1:
       st.metric(
-          "Jumlah Unit Akurat",
+          "Total Unit Akurat",
           f"{get_total_count(df_filtered, 'tabel_kendaraan'):,} Unit",
       )
     with col_m2:
@@ -466,7 +484,9 @@ elif menu == "🚗 Kendaraan Dinas":
       ]
 
     st.dataframe(
-        df_view.drop(columns=["Harga_Clean"], errors="ignore"),
+        df_view.drop(
+            columns=["Harga_Clean", "Kategori_Detail"], errors="ignore"
+        ),
         use_container_width=True,
         height=400,
     )
