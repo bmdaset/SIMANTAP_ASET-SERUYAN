@@ -65,13 +65,19 @@ st.markdown(
         border-left: 5px solid #2563eb;
         margin-bottom: 12px;
     }
-    .preview-card {
+    .preview-box {
         background: #ffffff;
         padding: 20px;
         border-radius: 12px;
         border: 1px solid #e2e8f0;
         box-shadow: 0 4px 6px rgba(0,0,0,0.02);
         margin-top: 15px;
+        margin-bottom: 15px;
+    }
+    .data-item {
+        padding: 6px 0;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 14px;
     }
     </style>
 """,
@@ -444,7 +450,7 @@ if menu == "🏠 Beranda & Ringkasan":
 
 
 # ==========================================
-# FUNGSI RENDER MODUL UTAMA DENGAN PREVIEW KLIK & DOWNLOAD
+# FUNGSI RENDER MODUL UTAMA DENGAN PREVIEW RAPI
 # ==========================================
 def render_modul_aset(table_name, judul_modul, placeholder_cari):
   df = load_data(table_name)
@@ -463,7 +469,7 @@ def render_modul_aset(table_name, judul_modul, placeholder_cari):
       f"""
         <div class="header-banner">
             <h2 style='margin:0;'>{judul_modul}</h2>
-            <p style='margin:5px 0 0 0;'>Cari barang, klik untuk melihat preview detail, serta unduh laporan secara instan.</p>
+            <p style='margin:5px 0 0 0;'>Cari barang, klik untuk melihat preview detail per baris secara terstruktur, serta unduh laporan instan.</p>
         </div>
     """,
       unsafe_allow_html=True,
@@ -553,7 +559,7 @@ def render_modul_aset(table_name, judul_modul, placeholder_cari):
   )
 
   st.info(
-      "💡 **Tips:** Klik pada salah satu baris tabel di bawah untuk melihat rincian preview dan mengunduh data barang."
+      "💡 **Tips:** Klik pada salah satu baris tabel di bawah untuk melihat preview detail terstruktur khusus barang tersebut."
   )
   event = st.dataframe(
       df_display,
@@ -572,25 +578,57 @@ def render_modul_aset(table_name, judul_modul, placeholder_cari):
 
       st.markdown(
           """
-            <div class="preview-card">
-                <h3 style="margin-top:0; color:#1e3a8a;">📋 Preview Rincian Barang Terpilih</h3>
-            </div>
+            <div class="preview-box">
+                <h3 style="margin-top:0; color:#1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">📋 Preview Rincian Barang Terpilih</h3>
             """,
           unsafe_allow_html=True,
       )
 
-      col_p1, col_p2 = st.columns(2)
-      items_list = list(selected_data.items())
-      half = len(items_list) // 2
+      # Membagi data secara rapi menjadi 3 kolom terstruktur
+      col_p1, col_p2, col_p3 = st.columns(3)
+      items_list = [
+          (k, v)
+          for k, v in selected_data.items()
+          if k not in ["Harga_Clean", "Kategori_Detail"]
+      ]
+      chunk_size = (
+          len(items_list) + 2
+      ) // 3  # membagi rata ke 3 kolom secara proporsional
 
       with col_p1:
-        for k, v in items_list[:half]:
-          if k not in ["Harga_Clean", "Kategori_Detail"]:
-            st.text(f"{k}: {v}")
+        st.markdown(
+            "**📌 Identitas & Kode**", unsafe_allow_html=True
+        )  # Card 1
+        for k, v in items_list[:chunk_size]:
+          val_str = f"Rp {float(v):,.0f}" if "harga" in k.lower() and v else str(v)
+          st.markdown(
+              f"<div class='data-item'><b>{k}:</b> {val_str}</div>",
+              unsafe_allow_html=True,
+          )
+
       with col_p2:
-        for k, v in items_list[half:]:
-          if k not in ["Harga_Clean", "Kategori_Detail"]:
-            st.text(f"{k}: {v}")
+        st.markdown(
+            "**🚗 Spesifikasi & Fisik**", unsafe_allow_html=True
+        )  # Card 2
+        for k, v in items_list[chunk_size : chunk_size * 2]:
+          val_str = f"Rp {float(v):,.0f}" if "harga" in k.lower() and v else str(v)
+          st.markdown(
+              f"<div class='data-item'><b>{k}:</b> {val_str}</div>",
+              unsafe_allow_html=True,
+          )
+
+      with col_p3:
+        st.markdown(
+            "**🏢 Pengelola & Lainnya**", unsafe_allow_html=True
+        )  # Card 3
+        for k, v in items_list[chunk_size * 2 :]:
+          val_str = f"Rp {float(v):,.0f}" if "harga" in k.lower() and v else str(v)
+          st.markdown(
+              f"<div class='data-item'><b>{k}:</b> {val_str}</div>",
+              unsafe_allow_html=True,
+          )
+
+      st.markdown("</div>", unsafe_allow_html=True)  # Close preview-box
 
       st.markdown("### 📥 Download Laporan Barang Ini")
       d_col1, d_col2, d_col3 = st.columns(3)
