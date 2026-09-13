@@ -361,10 +361,19 @@ if menu == "🏠 Beranda & Ringkasan":
         motor_val,
     ) = (0, 0, 0, 0, 0, 0, 0, 0)
 
-  tanah_cnt = get_total_count(df_a, "tabel_kib_a_tanah")
-  tanah_val = df_a["Harga_Clean"].sum() if not df_a.empty else 0
-  gedung_cnt = get_total_count(df_c, "tabel_kib_c_gedung")
-  gedung_val = df_c["Harga_Clean"].sum() if not df_c.empty else 0
+  if not df_a.empty:
+    df_a["Harga_Clean"] = clean_harga(df_a)
+    tanah_cnt = get_total_count(df_a, "tabel_kib_a_tanah")
+    tanah_val = df_a["Harga_Clean"].sum()
+  else:
+    tanah_cnt, tanah_val = 0, 0
+
+  if not df_c.empty:
+    df_c["Harga_Clean"] = clean_harga(df_c)
+    gedung_cnt = get_total_count(df_c, "tabel_kib_c_gedung")
+    gedung_val = df_c["Harga_Clean"].sum()
+  else:
+    gedung_cnt, gedung_val = 0, 0
 
   col1, col2, col3 = st.columns(3)
   with col1:
