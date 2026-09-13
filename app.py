@@ -67,7 +67,7 @@ st.markdown(
     }
     .preview-card {
         background: #ffffff;
-        padding: 20px;
+        padding: 25px;
         border-radius: 12px;
         border: 1px solid #e2e8f0;
         box-shadow: 0 4px 6px rgba(0,0,0,0.02);
@@ -299,7 +299,8 @@ st.sidebar.markdown(
 )
 st.sidebar.markdown("---")
 
-menu = st.sidebar.radio(
+# Reset pilihan detail saat menu sidebar diubah
+current_menu = st.sidebar.radio(
     "Pilih Modul Aset:",
     [
         "🏠 Beranda & Ringkasan",
@@ -308,6 +309,15 @@ menu = st.sidebar.radio(
         "🏢 KIB C (Gedung & Bangunan)",
     ],
 )
+
+if "last_menu" not in st.session_state:
+  st.session_state.last_menu = current_menu
+
+if st.session_state.last_menu != current_menu:
+  st.session_state.selected_item = None
+  st.session_state.last_menu = current_menu
+
+menu = current_menu
 
 
 # ==========================================
@@ -444,7 +454,7 @@ if menu == "🏠 Beranda & Ringkasan":
 
 
 # ==========================================
-# FUNGSI RENDER MODUL UTAMA DENGAN PREVIEW KLIK & DOWNLOAD
+# FUNGSI RENDER MODUL UTAMA DENGAN HALAMAN PREVIEW TERPISAH
 # ==========================================
 def render_modul_aset(table_name, judul_modul, placeholder_cari):
   df = load_data(table_name)
@@ -459,11 +469,94 @@ def render_modul_aset(table_name, judul_modul, placeholder_cari):
     nama_col_ref = get_nama_barang(df)
     df["Kategori_Detail"] = df[nama_col_ref].apply(kategorkan_kendaraan)
 
+  # Inisialisasi state untuk halaman detail spesifik tabel ini
+  state_key = f"selected_item_{table_name}"
+  if state_key not in st.session_state:
+    st.session_state[state_key] = None
+
+  # Jika tombol kembali ditekan atau state aktif, tampilkan Halaman Detail Terpisah
+  if st.session_state[state_key] is not None:
+    selected_data = st.session_state[state_key]
+
+    if st.button("⬅️ Kembali ke Tabel Daftar Aset"):
+      st.session_state[state_key] = None
+      st.rerun()
+
+    st.markdown(
+        f"""
+        <div class="header-banner">
+            <h2 style='margin:0;'>📋 Laman Detail Rincian Barang</h2>
+            <p style='margin:5px 0 0 0;'>Menampilkan rincian lengkap atribut aset terpilih secara penuh dan terstruktur.</p>
+        </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        '<div class="preview-card">', unsafe_allow_html=True
+    )  # Buka wrapper card
+
+    # Tabel Rincian Bergaris dan Rapi (Menampilkan Seluruh Kolom Penuh)
+    preview_df = pd.DataFrame(
+        list(selected_data.items()), columns=["Atribut / Kolom", "Keterangan"]
+    )
+    preview_df = preview_df[
+        ~preview_df["Atribut / Kolom"].isin(["Harga_Clean", "Kategori_Detail"])
+    ]
+
+    st.dataframe(
+        preview_df,
+        use_container_width=True,
+        height=480,
+        hide_index=True,
+    )
+
+    st.markdown("### 📥 Download Laporan Barang Ini")
+    d_col1, d_col2, d_col3 = st.columns(3)
+
+    df_single_row = pd.DataFrame([selected_data]).drop(
+        columns=[
+            c for c in ["Harga_Clean", "Kategori_Detail"] if c in selected_data
+        ],
+        errors="ignore",
+    )
+
+    with d_col1:
+      excel_data = convert_df_to_excel(df_single_row)
+      st.download_button(
+          label="📊 Download Excel (.xlsx)",
+          data=excel_data,
+          file_name=f"Detail_Aset_{table_name}.xlsx",
+          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          key=f"dl_excel_{table_name}",
+      )
+    with d_col2:
+      word_data = generate_word_doc(selected_data)
+      st.download_button(
+          label="📝 Download Word (.docx)",
+          data=word_data,
+          file_name=f"Detail_Aset_{table_name}.docx",
+          mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          key=f"dl_word_{table_name}",
+      )
+    with d_col3:
+      pdf_data = generate_pdf_doc(selected_data)
+      st.download_button(
+          label="📄 Download PDF (.pdf)",
+          data=pdf_data,
+          file_name=f"Detail_Aset_{table_name}.pdf",
+          mime="application/pdf",
+          key=f"dl_pdf_{table_name}",
+      )
+    st.markdown("</div>", unsafe_allow_html=True)  # Tutup wrapper card
+    return
+
+  # Tampilan Utama (Tabel Daftar Aset & Filter)
   st.markdown(
       f"""
         <div class="header-banner">
             <h2 style='margin:0;'>{judul_modul}</h2>
-            <p style='margin:5px 0 0 0;'>Cari barang, klik untuk melihat preview detail, serta unduh laporan secara instan.</p>
+            <p style='margin:5px 0 0 0;'>Cari barang, klik baris untuk membuka laman rincian preview penuh, serta unduh laporan.</p>
         </div>
     """,
       unsafe_allow_html=True,
@@ -553,12 +646,12 @@ def render_modul_aset(table_name, judul_modul, placeholder_cari):
   )
 
   st.info(
-      "💡 **Tips:** Klik pada salah satu baris tabel di bawah untuk melihat rincian preview dan mengunduh data barang."
+      "💡 **Tips:** Klik pada salah satu baris tabel di bawah untuk membuka laman khusus preview rincian barang."
   )
   event = st.dataframe(
       df_display,
       use_container_width=True,
-      height=380,
+      height=400,
       selection_mode="single-row",
       on_select="rerun",
       key=f"grid_{table_name}",
@@ -568,73 +661,8 @@ def render_modul_aset(table_name, judul_modul, placeholder_cari):
   if selected_rows:
     idx_row = selected_rows[0]
     if idx_row < len(df_view):
-      selected_data = df_view.iloc[idx_row].to_dict()
-
-      st.markdown(
-          """
-            <div class="preview-card">
-                <h3 style="margin-top:0; color:#1e3a8a;">📋 Preview Rincian Barang Terpilih</h3>
-            </div>
-            """,
-          unsafe_allow_html=True,
-      )
-
-      # Tabel Rincian Bergaris dan Rapi (Menampilkan Semua Kolom/Laman Data)
-      preview_df = pd.DataFrame(
-          list(selected_data.items()), columns=["Atribut / Kolom", "Keterangan"]
-      )
-      preview_df = preview_df[
-          ~preview_df["Atribut / Kolom"].isin(
-              ["Harga_Clean", "Kategori_Detail"]
-          )
-      ]
-
-      st.dataframe(
-          preview_df,
-          use_container_width=True,
-          height=400,
-          hide_index=True,
-      )
-
-      st.markdown("### 📥 Download Laporan Barang Ini")
-      d_col1, d_col2, d_col3 = st.columns(3)
-
-      df_single_row = pd.DataFrame([selected_data]).drop(
-          columns=[
-              c
-              for c in ["Harga_Clean", "Kategori_Detail"]
-              if c in selected_data
-          ],
-          errors="ignore",
-      )
-
-      with d_col1:
-        excel_data = convert_df_to_excel(df_single_row)
-        st.download_button(
-            label="📊 Download Excel (.xlsx)",
-            data=excel_data,
-            file_name=f"Detail_Aset_{table_name}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"dl_excel_{table_name}",
-        )
-      with d_col2:
-        word_data = generate_word_doc(selected_data)
-        st.download_button(
-            label="📝 Download Word (.docx)",
-            data=word_data,
-            file_name=f"Detail_Aset_{table_name}.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            key=f"dl_word_{table_name}",
-        )
-      with d_col3:
-        pdf_data = generate_pdf_doc(selected_data)
-        st.download_button(
-            label="📄 Download PDF (.pdf)",
-            data=pdf_data,
-            file_name=f"Detail_Aset_{table_name}.pdf",
-            mime="application/pdf",
-            key=f"dl_pdf_{table_name}",
-        )
+      st.session_state[state_key] = df_view.iloc[idx_row].to_dict()
+      st.rerun()
 
 
 # ==========================================
