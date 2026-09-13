@@ -518,9 +518,14 @@ def render_modul_aset(table_name, judul_modul, placeholder_cari):
   st.markdown("---")
   col_m1, col_m2 = st.columns(2)
   with col_m1:
-    st.metric("Total Unit Akurat", f"{get_total_count(df_filtered, table_name):,} Unit")
+    st.metric(
+        "Total Unit Akurat",
+        f"{get_total_count(df_filtered, table_name):,} Unit",
+    )
   with col_m2:
-    st.metric("Akumulasi Nilai", f"Rp {df_filtered['Harga_Clean'].sum():,.0f}")
+    st.metric(
+        "Akumulasi Nilai", f"Rp {df_filtered['Harga_Clean'].sum():,.0f}"
+    )
 
   st.markdown("---")
   keyword = st.text_input(f"🔎 {placeholder_cari}", key=f"kw_{table_name}")
@@ -531,9 +536,10 @@ def render_modul_aset(table_name, judul_modul, placeholder_cari):
         .apply(lambda row: row.str.contains(keyword, case=False).any(), axis=1)
     ]
 
-  # Tampilkan tabel interaktif dengan pemilihan baris untuk Preview
   df_display = df_view.drop(
-      columns=[c for c in ["Harga_Clean", "Kategori_Detail"] if c in df_view.columns],
+      columns=[
+          c for c in ["Harga_Clean", "Kategori_Detail"] if c in df_view.columns
+      ],
       errors="ignore",
   )
 
@@ -549,7 +555,6 @@ def render_modul_aset(table_name, judul_modul, placeholder_cari):
       key=f"grid_{table_name}",
   )
 
-  # --- PANEL PREVIEW & DOWNLOAD ---
   selected_rows = event.selection.get("rows", [])
   if selected_rows:
     idx_row = selected_rows[0]
@@ -565,7 +570,6 @@ def render_modul_aset(table_name, judul_modul, placeholder_cari):
           unsafe_allow_html=True,
       )
 
-      # Tampilkan detail dalam kolom rapi
       col_p1, col_p2 = st.columns(2)
       items_list = list(selected_data.items())
       half = len(items_list) // 2
@@ -621,18 +625,15 @@ def render_modul_aset(table_name, judul_modul, placeholder_cari):
 
 
 # ==========================================
-# 1. MENU KENDARAAN DINAS
+# PEMANGGILAN MENU UTAMA (ROUTER)
 # ==========================================
-elif menu == "🚗 Kendaraan Dinas":
+if menu == "🚗 Kendaraan Dinas":
   render_modul_aset(
       "tabel_kendaraan",
       "🚗 Manajemen Aset Kendaraan Dinas",
       "Cari Berdasarkan No. Polisi / Merk / Pengguna:",
   )
 
-# ==========================================
-# 2. MENU KIB A (TANAH)
-# ==========================================
 elif menu == "🗺️ KIB A (Tanah)":
   render_modul_aset(
       "tabel_kib_a_tanah",
@@ -640,9 +641,6 @@ elif menu == "🗺️ KIB A (Tanah)":
       "Cari Berdasarkan Alamat / Lokasi / Keterangan:",
   )
 
-# ==========================================
-# 3. MENU KIB C (GEDUNG & BANGUNAN)
-# ==========================================
 elif menu == "🏢 KIB C (Gedung & Bangunan)":
   render_modul_aset(
       "tabel_kib_c_gedung",
