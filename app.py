@@ -121,8 +121,6 @@ def kategorkan_kendaraan(nama_brg):
   if pd.isna(nama_brg):
     return "Mobil Dinas"
   n = str(nama_brg).upper()
-
-  # Deteksi spesifik berdasarkan penamaan baku aset daerah
   if any(
       x in n
       for x in [
@@ -135,7 +133,6 @@ def kategorkan_kendaraan(nama_brg):
           "TRAKTOR",
           "FORKLIFT",
           "WHEEL",
-          "BULD",
       ]
   ):
     return "Alat Berat"
@@ -150,11 +147,8 @@ def kategorkan_kendaraan(nama_brg):
           "YAMAHA",
           "SUZUKI",
           "KAWASAKI",
-          "KX",
-          "CRF",
       ]
   ):
-    # Pengecualian agar kendaraan roda 4 bermerek tidak masuk motor
     if not any(
         x in n
         for x in [
@@ -164,7 +158,6 @@ def kategorkan_kendaraan(nama_brg):
             "SEDAN",
             "MINIBUS",
             "BUS",
-            "PICK",
             "TRUCK",
         ]
     ):
@@ -180,12 +173,9 @@ def kategorkan_kendaraan(nama_brg):
           "DUMP",
           "STRADA",
           "HILUX",
-          "LIGHT TRUCK",
-          "TOWING",
       ]
   ):
     return "Pick Up / Truk"
-
   return "Mobil Dinas"
 
 
@@ -205,7 +195,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- SIDEBAR NAVIGASI (Dengan Ikon Gambar dan Teks Terang Terbuka) ---
+# --- SIDEBAR NAVIGASI (Dengan Ikon Gambar/Emoji dan Teks Terang) ---
 st.sidebar.markdown(
     "<h3 style='color: #38bdf8; text-align: center;'>📌 MENU NAVIGASI</h3>",
     unsafe_allow_html=True,
@@ -254,17 +244,14 @@ if menu == "🏠 Beranda & Ringkasan":
     alat_berat_val = df_k[df_k["Kategori_Detail"] == "Alat Berat"][
         "Harga_Clean"
     ].sum()
-
     mobil_cnt = len(df_k[df_k["Kategori_Detail"] == "Mobil Dinas"])
     mobil_val = df_k[df_k["Kategori_Detail"] == "Mobil Dinas"][
         "Harga_Clean"
     ].sum()
-
     pickup_cnt = len(df_k[df_k["Kategori_Detail"] == "Pick Up / Truk"])
     pickup_val = df_k[df_k["Kategori_Detail"] == "Pick Up / Truk"][
         "Harga_Clean"
     ].sum()
-
     motor_cnt = len(df_k[df_k["Kategori_Detail"] == "Sepeda Motor"])
     motor_val = df_k[df_k["Kategori_Detail"] == "Sepeda Motor"][
         "Harga_Clean"
@@ -281,22 +268,19 @@ if menu == "🏠 Beranda & Ringkasan":
         motor_val,
     ) = (0, 0, 0, 0, 0, 0, 0, 0)
 
+  tanah_cnt = len(df_a) if not df_a.empty else 0
+  tanah_val = df_a["Harga_Clean"].sum() if not df_a.empty else 0
   if not df_a.empty:
     df_a["Harga_Clean"] = clean_harga(df_a)
-    tanah_cnt = len(df_a)
     tanah_val = df_a["Harga_Clean"].sum()
-  else:
-    tanah_cnt, tanah_val = 0, 0
 
+  gedung_cnt = len(df_c) if not df_c.empty else 0
+  gedung_val = df_c["Harga_Clean"].sum() if not df_c.empty else 0
   if not df_c.empty:
     df_c["Harga_Clean"] = clean_harga(df_c)
-    gedung_cnt = len(df_c)
     gedung_val = df_c["Harga_Clean"].sum()
-  else:
-    gedung_cnt, gedung_val = 0, 0
 
   col1, col2, col3 = st.columns(3)
-
   with col1:
     st.markdown(
         f"""
@@ -363,33 +347,9 @@ if menu == "🏠 Beranda & Ringkasan":
         unsafe_allow_html=True,
     )
 
-  st.markdown("---")
-  st.markdown("### 📈 Grafik Visualisasi Total Nilai Aset per Kategori")
-
-  chart_data = pd.DataFrame({
-      "Kategori": [
-          "Alat Berat",
-          "Mobil Dinas",
-          "Pick Up / Truk",
-          "Sepeda Motor",
-          "Tanah",
-          "Gedung",
-      ],
-      "Total Nilai (Rp)": [
-          alat_berat_val,
-          mobil_val,
-          pickup_val,
-          motor_val,
-          tanah_val,
-          gedung_val,
-      ],
-  }).set_index("Kategori")
-
-  st.bar_chart(chart_data, color="#2563eb")
-
 
 # ==========================================
-# 1. MENU KENDARAAN DINAS
+# 1. MENU KENDARAAN DINAS (DENGAN FILTER NILAI BARANG)
 # ==========================================
 elif menu == "🚗 Kendaraan Dinas":
   df = load_data("tabel_kendaraan")
@@ -397,107 +357,20 @@ elif menu == "🚗 Kendaraan Dinas":
     st.warning("Data tabel_kendaraan belum tersedia.")
   else:
     df["Harga_Clean"] = clean_harga(df)
-    nama_col_ref = (
-        "Nama_Barang_Jenis_Barang"
-        if "Nama_Barang_Jenis_Barang" in df.columns
-        else df.columns[1]
+
+    st.markdown(
+        """
+        <div class="header-banner">
+            <h2 style='margin:0;'>🚗 Manajemen Aset Kendaraan Dinas</h2>
+            <p style='margin:5px 0 0 0;'>Filter jumlah barang berdasarkan SKPD dan Kategori Nilai Barang.</p>
+        </div>
+    """,
+        unsafe_allow_html=True,
     )
-    df["Kategori_Kendaraan"] = df[nama_col_ref].apply(kategorkan_kendaraan)
 
-    if "selected_row_idx_k1" not in st.session_state:
-      st.session_state.selected_row_idx_k1 = None
-
-    if st.session_state.selected_row_idx_k1 is not None:
-      idx = st.session_state.selected_row_idx_k1
-      st.markdown(
-          """
-                <div style='background: #0284c7; padding: 15px; border-radius: 10px; color: white; margin-bottom: 20px;'>
-                    <h3 style='margin:0;'>📱 PREVIEW DETAIL KENDARAAN DINAS</h3>
-                </div>
-            """,
-          unsafe_allow_html=True,
-      )
-
-      if st.button("⬅️ Kembali ke Tabel Utama"):
-        st.session_state.selected_row_idx_k1 = None
-        st.rerun()
-
-      if idx < len(df):
-        detail_data = df.iloc[idx]
-        item_id = detail_data.get(df.columns[0], "ID")
-
-        detail_list = [
-            {
-                "Atribut / Kolom": str(c).replace("_", " ").title(),
-                "Keterangan Detail": str(v if pd.notna(v) else "-"),
-            }
-            for c, v in detail_data.items()
-            if c != "Harga_Clean"
-        ]
-        st.dataframe(
-            pd.DataFrame(detail_list),
-            use_container_width=True,
-            hide_index=True,
-            height=400,
-        )
-
-        st.markdown("---")
-        st.markdown("### 📥 Unduh Dokumen Laporan")
-        dl1, dl2, dl3 = st.columns(3)
-
-        out_excel = io.BytesIO()
-        with pd.ExcelWriter(out_excel, engine="openpyxl") as w:
-          pd.DataFrame([detail_data]).to_excel(w, index=False)
-        with dl1:
-          st.download_button(
-              "📊 Excel (.xlsx)",
-              out_excel.getvalue(),
-              file_name=f"Kendaraan_{item_id}.xlsx",
-          )
-
-        doc = Document()
-        doc.add_heading("Detail Aset Kendaraan Dinas", level=1)
-        for k, v in detail_data.items():
-          doc.add_paragraph(f"{str(k).replace('_', ' ')} : {v}")
-        out_word = io.BytesIO()
-        doc.save(out_word)
-        with dl2:
-          st.download_button(
-              "📄 Word (.docx)",
-              out_word.getvalue(),
-              file_name=f"Kendaraan_{item_id}.docx",
-          )
-
-        out_pdf = io.BytesIO()
-        pdf = canvas.Canvas(out_pdf, pagesize=letter)
-        w_p, h_p = letter
-        pdf.drawString(40, h_p - 40, "DETAIL ASET KENDARAAN DINAS")
-        y = h_p - 70
-        for k, v in detail_data.items():
-          pdf.drawString(40, y, f"{str(k).replace('_', ' ')}: {str(v)[:60]}")
-          y -= 18
-          if y < 40:
-            pdf.showPage()
-            y = h_p - 40
-        pdf.save()
-        with dl3:
-          st.download_button(
-              "📑 PDF (.pdf)",
-              out_pdf.getvalue(),
-              file_name=f"Kendaraan_{item_id}.pdf",
-          )
-
-    else:
-      st.markdown(
-          """
-            <div class="header-banner">
-                <h2 style='margin:0;'>🚗 Manajemen Aset Kendaraan Dinas</h2>
-                <p style='margin:5px 0 0 0;'>Klik salah satu baris pada tabel untuk melihat rincian preview lengkap.</p>
-            </div>
-        """,
-          unsafe_allow_html=True,
-      )
-
+    # Filter SKPD & Range Nilai Barang
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
       skpd_list = (
           ["Semua SKPD"] + sorted(df["SKPD"].dropna().astype(str).unique().tolist())
           if "SKPD" in df.columns
@@ -505,53 +378,57 @@ elif menu == "🚗 Kendaraan Dinas":
       )
       selected_skpd = st.selectbox("🏢 **Filter Berdasarkan SKPD:**", skpd_list)
 
-      df_filtered = df.copy()
-      if selected_skpd != "Semua SKPD":
-        df_filtered = df_filtered[df_filtered["SKPD"] == selected_skpd]
-
-      col1, col2 = st.columns(2)
-      with col1:
-        st.metric("Total Unit", f"{len(df_filtered):,} Unit")
-      with col2:
-        st.metric(
-            "Akumulasi Nilai", f"Rp {df_filtered['Harga_Clean'].sum():,.0f}"
-        )
-
-      st.markdown("---")
-      keyword = st.text_input("🔎 Cari Berdasarkan No. Polisi / Merk / Pengguna:")
-      df_view = df_filtered.copy()
-      if keyword:
-        df_view = df_view[
-            df_view.astype(str)
-            .apply(
-                lambda row: row.str.contains(keyword, case=False).any(), axis=1
-            )
-        ]
-
-      st.info(
-          f"💡 Ditemukan **{len(df_view)}** data. **Klik salah satu baris**"
-          " untuk preview penuh dan unduh dokumen."
+    with col_f2:
+      filter_nilai = st.selectbox(
+          "💰 **Filter Berdasarkan Nilai Barang:**",
+          [
+              "Semua Kisaran Nilai",
+              "Di bawah Rp 50 Juta",
+              "Rp 50 Juta - Rp 200 Juta",
+              "Di atas Rp 200 Juta",
+          ],
       )
 
-      event = st.dataframe(
-          df_view.drop(
-              columns=["Harga_Clean", "Kategori_Kendaraan"], errors="ignore"
-          ),
-          use_container_width=True,
-          on_select="rerun",
-          selection_mode="single-row",
-          height=400,
+    df_filtered = df.copy()
+    if selected_skpd != "Semua SKPD":
+      df_filtered = df_filtered[df_filtered["SKPD"] == selected_skpd]
+
+    if filter_nilai == "Di bawah Rp 50 Juta":
+      df_filtered = df_filtered[df_filtered["Harga_Clean"] < 50000000]
+    elif filter_nilai == "Rp 50 Juta - Rp 200 Juta":
+      df_filtered = df_filtered[
+          (df_filtered["Harga_Clean"] >= 50000000)
+          & (df_filtered["Harga_Clean"] <= 200000000)
+      ]
+    elif filter_nilai == "Di atas Rp 200 Juta":
+      df_filtered = df_filtered[df_filtered["Harga_Clean"] > 200000000]
+
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+      st.metric("Jumlah Unit Akurat", f"{len(df_filtered):,} Unit")
+    with col_m2:
+      st.metric(
+          "Akumulasi Nilai", f"Rp {df_filtered['Harga_Clean'].sum():,.0f}"
       )
 
-      if event.selection.rows:
-        local_idx = event.selection.rows[0]
-        actual_idx = df.index[df_view.index[local_idx]]
-        st.session_state.selected_row_idx_k1 = actual_idx
-        st.rerun()
+    st.markdown("---")
+    keyword = st.text_input("🔎 Cari Berdasarkan No. Polisi / Merk / Pengguna:")
+    df_view = df_filtered.copy()
+    if keyword:
+      df_view = df_view[
+          df_view.astype(str)
+          .apply(lambda row: row.str.contains(keyword, case=False).any(), axis=1)
+      ]
+
+    st.dataframe(
+        df_view.drop(columns=["Harga_Clean"], errors="ignore"),
+        use_container_width=True,
+        height=400,
+    )
 
 
 # ==========================================
-# 2. MENU KIB A (TANAH)
+# 2. MENU KIB A (TANAH) (DENGAN FILTER NILAI BARANG)
 # ==========================================
 elif menu == "🗺️ KIB A (Tanah)":
   df_a = load_data("tabel_kib_a_tanah")
@@ -560,95 +437,18 @@ elif menu == "🗺️ KIB A (Tanah)":
   else:
     df_a["Harga_Clean"] = clean_harga(df_a)
 
-    if "selected_row_idx_a" not in st.session_state:
-      st.session_state.selected_row_idx_a = None
+    st.markdown(
+        """
+        <div class="header-banner">
+            <h2 style='margin:0;'>🗺️ Manajemen Aset KIB A (Tanah)</h2>
+            <p style='margin:5px 0 0 0;'>Filter jumlah bidang tanah berdasarkan SKPD dan Rentang Nilai/Harga.</p>
+        </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
-    if st.session_state.selected_row_idx_a is not None:
-      idx = st.session_state.selected_row_idx_a
-      st.markdown(
-          """
-                <div style='background: #059669; padding: 15px; border-radius: 10px; color: white; margin-bottom: 20px;'>
-                    <h3 style='margin:0;'>📱 PREVIEW DETAIL KIB A (TANAH)</h3>
-                </div>
-            """,
-          unsafe_allow_html=True,
-      )
-
-      if st.button("⬅️ Kembali ke Tabel Utama"):
-        st.session_state.selected_row_idx_a = None
-        st.rerun()
-
-      if idx < len(df_a):
-        detail_data = df_a.iloc[idx]
-        item_id = detail_data.get(df_a.columns[0], "ID")
-        detail_list = [
-            {
-                "Atribut / Kolom": str(c).replace("_", " ").title(),
-                "Keterangan Detail": str(v if pd.notna(v) else "-"),
-            }
-            for c, v in detail_data.items()
-            if c != "Harga_Clean"
-        ]
-        st.dataframe(
-            pd.DataFrame(detail_list),
-            use_container_width=True,
-            hide_index=True,
-            height=400,
-        )
-
-        st.markdown("---")
-        dl1, dl2, dl3 = st.columns(3)
-        out_excel = io.BytesIO()
-        with pd.ExcelWriter(out_excel, engine="openpyxl") as w:
-          pd.DataFrame([detail_data]).to_excel(w, index=False)
-        with dl1:
-          st.download_button(
-              "📊 Excel (.xlsx)",
-              out_excel.getvalue(),
-              file_name=f"Tanah_{item_id}.xlsx",
-          )
-        doc = Document()
-        doc.add_heading("Detail Aset KIB A (Tanah)", level=1)
-        for k, v in detail_data.items():
-          doc.add_paragraph(f"{str(k).replace('_', ' ')} : {v}")
-        out_word = io.BytesIO()
-        doc.save(out_word)
-        with dl2:
-          st.download_button(
-              "📄 Word (.docx)",
-              out_word.getvalue(),
-              file_name=f"Tanah_{item_id}.docx",
-          )
-        out_pdf = io.BytesIO()
-        pdf = canvas.Canvas(out_pdf, pagesize=letter)
-        w_p, h_p = letter
-        pdf.drawString(40, h_p - 40, "DETAIL ASET KIB A TANAH")
-        y = h_p - 70
-        for k, v in detail_data.items():
-          pdf.drawString(40, y, f"{str(k).replace('_', ' ')}: {str(v)[:60]}")
-          y -= 18
-          if y < 40:
-            pdf.showPage()
-            y = h_p - 40
-        pdf.save()
-        with dl3:
-          st.download_button(
-              "📑 PDF (.pdf)",
-              out_pdf.getvalue(),
-              file_name=f"Tanah_{item_id}.pdf",
-          )
-
-    else:
-      st.markdown(
-          """
-            <div class="header-banner">
-                <h2 style='margin:0;'>🗺️ Manajemen Aset KIB A (Tanah)</h2>
-                <p style='margin:5px 0 0 0;'>Klik baris pada tabel untuk melihat preview penuh.</p>
-            </div>
-        """,
-          unsafe_allow_html=True,
-      )
-
+    col_fa1, col_fa2 = st.columns(2)
+    with col_fa1:
       skpd_options_a = (
           ["Semua SKPD"]
           + sorted(df_a["SKPD"].dropna().astype(str).unique().tolist())
@@ -656,47 +456,59 @@ elif menu == "🗺️ KIB A (Tanah)":
           else ["Semua SKPD"]
       )
       selected_skpd_a = st.selectbox(
-          "🏢 **Filter Berdasarkan SKPD:**", skpd_options_a
+          "🏢 **Filter Berdasarkan SKPD:**", skpd_options_a, key="skpd_a"
+      )
+    with col_fa2:
+      filter_nilai_a = st.selectbox(
+          "💰 **Filter Berdasarkan Nilai Tanah:**",
+          [
+              "Semua Kisaran Nilai",
+              "Di bawah Rp 100 Juta",
+              "Rp 100 Juta - Rp 1 Miliar",
+              "Di atas Rp 1 Miliar",
+          ],
       )
 
-      df_a_filtered = df_a.copy()
-      if selected_skpd_a != "Semua SKPD":
-        df_a_filtered = df_a_filtered[df_a_filtered["SKPD"] == selected_skpd_a]
+    df_a_filtered = df_a.copy()
+    if selected_skpd_a != "Semua SKPD":
+      df_a_filtered = df_a_filtered[df_a_filtered["SKPD"] == selected_skpd_a]
 
-      col1, col2 = st.columns(2)
-      with col1:
-        st.metric("Total Bidang", f"{len(df_a_filtered):,} Bidang")
-      with col2:
-        st.metric(
-            "Total Nilai Tanah", f"Rp {df_a_filtered['Harga_Clean'].sum():,.0f}"
-        )
+    if filter_nilai_a == "Di bawah Rp 100 Juta":
+      df_a_filtered = df_a_filtered[df_a_filtered["Harga_Clean"] < 100000000]
+    elif filter_nilai_a == "Rp 100 Juta - Rp 1 Miliar":
+      df_a_filtered = df_a_filtered[
+          (df_a_filtered["Harga_Clean"] >= 100000000)
+          & (df_a_filtered["Harga_Clean"] <= 1000000000)
+      ]
+    elif filter_nilai_a == "Di atas Rp 1 Miliar":
+      df_a_filtered = df_a_filtered[df_a_filtered["Harga_Clean"] > 1000000000]
 
-      st.markdown("---")
-      kw_a = st.text_input("🔎 Cari Berdasarkan Alamat / Lokasi:")
-      df_a_view = df_a_filtered.copy()
-      if kw_a:
-        df_a_view = df_a_view[
-            df_a_view.astype(str)
-            .apply(lambda row: row.str.contains(kw_a, case=False).any(), axis=1)
-        ]
-
-      event_a = st.dataframe(
-          df_a_view.drop(columns=["Harga_Clean"], errors="ignore"),
-          use_container_width=True,
-          on_select="rerun",
-          selection_mode="single-row",
-          height=400,
+    col_ma1, col_ma2 = st.columns(2)
+    with col_ma1:
+      st.metric("Jumlah Bidang Akurat", f"{len(df_a_filtered):,} Bidang")
+    with col_ma2:
+      st.metric(
+          "Total Nilai Tanah", f"Rp {df_a_filtered['Harga_Clean'].sum():,.0f}"
       )
 
-      if event_a.selection.rows:
-        local_idx_a = event_a.selection.rows[0]
-        actual_idx_a = df_a.index[df_a_view.index[local_idx_a]]
-        st.session_state.selected_row_idx_a = actual_idx_a
-        st.rerun()
+    st.markdown("---")
+    kw_a = st.text_input("🔎 Cari Berdasarkan Alamat / Lokasi:")
+    df_a_view = df_a_filtered.copy()
+    if kw_a:
+      df_a_view = df_a_view[
+          df_a_view.astype(str)
+          .apply(lambda row: row.str.contains(kw_a, case=False).any(), axis=1)
+      ]
+
+    st.dataframe(
+        df_a_view.drop(columns=["Harga_Clean"], errors="ignore"),
+        use_container_width=True,
+        height=400,
+    )
 
 
 # ==========================================
-# 3. MENU KIB C (GEDUNG & BANGUNAN)
+# 3. MENU KIB C (GEDUNG & BANGUNAN) (DENGAN FILTER NILAI BARANG)
 # ==========================================
 elif menu == "🏢 KIB C (Gedung & Bangunan)":
   df_c = load_data("tabel_kib_c_gedung")
@@ -705,95 +517,18 @@ elif menu == "🏢 KIB C (Gedung & Bangunan)":
   else:
     df_c["Harga_Clean"] = clean_harga(df_c)
 
-    if "selected_row_idx_c" not in st.session_state:
-      st.session_state.selected_row_idx_c = None
+    st.markdown(
+        """
+        <div class="header-banner">
+            <h2 style='margin:0;'>🏢 Manajemen Aset KIB C (Gedung & Bangunan)</h2>
+            <p style='margin:5px 0 0 0;'>Filter jumlah unit gedung berdasarkan SKPD dan Rentang Nilai/Harga.</p>
+        </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
-    if st.session_state.selected_row_idx_c is not None:
-      idx = st.session_state.selected_row_idx_c
-      st.markdown(
-          """
-                <div style='background: #7c3aed; padding: 15px; border-radius: 10px; color: white; margin-bottom: 20px;'>
-                    <h3 style='margin:0;'>📱 PREVIEW DETAIL KIB C (GEDUNG & BANGUNAN)</h3>
-                </div>
-            """,
-          unsafe_allow_html=True,
-      )
-
-      if st.button("⬅️ Kembali ke Tabel Utama"):
-        st.session_state.selected_row_idx_c = None
-        st.rerun()
-
-      if idx < len(df_c):
-        detail_data = df_c.iloc[idx]
-        item_id = detail_data.get(df_c.columns[0], "ID")
-        detail_list = [
-            {
-                "Atribut / Kolom": str(c).replace("_", " ").title(),
-                "Keterangan Detail": str(v if pd.notna(v) else "-"),
-            }
-            for c, v in detail_data.items()
-            if c != "Harga_Clean"
-        ]
-        st.dataframe(
-            pd.DataFrame(detail_list),
-            use_container_width=True,
-            hide_index=True,
-            height=400,
-        )
-
-        st.markdown("---")
-        dl1, dl2, dl3 = st.columns(3)
-        out_excel = io.BytesIO()
-        with pd.ExcelWriter(out_excel, engine="openpyxl") as w:
-          pd.DataFrame([detail_data]).to_excel(w, index=False)
-        with dl1:
-          st.download_button(
-              "📊 Excel (.xlsx)",
-              out_excel.getvalue(),
-              file_name=f"Gedung_{item_id}.xlsx",
-          )
-        doc = Document()
-        doc.add_heading("Detail Aset KIB C (Gedung & Bangunan)", level=1)
-        for k, v in detail_data.items():
-          doc.add_paragraph(f"{str(k).replace('_', ' ')} : {v}")
-        out_word = io.BytesIO()
-        doc.save(out_word)
-        with dl2:
-          st.download_button(
-              "📄 Word (.docx)",
-              out_word.getvalue(),
-              file_name=f"Gedung_{item_id}.docx",
-          )
-        out_pdf = io.BytesIO()
-        pdf = canvas.Canvas(out_pdf, pagesize=letter)
-        w_p, h_p = letter
-        pdf.drawString(40, h_p - 40, "DETAIL ASET KIB C GEDUNG")
-        y = h_p - 70
-        for k, v in detail_data.items():
-          pdf.drawString(40, y, f"{str(k).replace('_', ' ')}: {str(v)[:60]}")
-          y -= 18
-          if y < 40:
-            pdf.showPage()
-            y = h_p - 40
-        pdf.save()
-        with dl3:
-          st.download_button(
-              "📑 PDF (.pdf)",
-              out_pdf.getvalue(),
-              file_name=f"Gedung_{item_id}.pdf",
-          )
-
-    else:
-      st.markdown(
-          """
-            <div class="header-banner">
-                <h2 style='margin:0;'>🏢 Manajemen Aset KIB C (Gedung & Bangunan)</h2>
-                <p style='margin:5px 0 0 0;'>Klik baris pada tabel untuk melihat preview penuh.</p>
-            </div>
-        """,
-          unsafe_allow_html=True,
-      )
-
+    col_fc1, col_fc2 = st.columns(2)
+    with col_fc1:
       skpd_options_c = (
           ["Semua SKPD"]
           + sorted(df_c["SKPD"].dropna().astype(str).unique().tolist())
@@ -801,40 +536,52 @@ elif menu == "🏢 KIB C (Gedung & Bangunan)":
           else ["Semua SKPD"]
       )
       selected_skpd_c = st.selectbox(
-          "🏢 **Filter Berdasarkan SKPD:**", skpd_options_c
+          "🏢 **Filter Berdasarkan SKPD:**", skpd_options_c, key="skpd_c"
+      )
+    with col_fc2:
+      filter_nilai_c = st.selectbox(
+          "💰 **Filter Berdasarkan Nilai Gedung:**",
+          [
+              "Semua Kisaran Nilai",
+              "Di bawah Rp 200 Juta",
+              "Rp 200 Juta - Rp 1 Miliar",
+              "Di atas Rp 1 Miliar",
+          ],
       )
 
-      df_c_filtered = df_c.copy()
-      if selected_skpd_c != "Semua SKPD":
-        df_c_filtered = df_c_filtered[df_c_filtered["SKPD"] == selected_skpd_c]
+    df_c_filtered = df_c.copy()
+    if selected_skpd_c != "Semua SKPD":
+      df_c_filtered = df_c_filtered[df_c_filtered["SKPD"] == selected_skpd_c]
 
-      col1, col2 = st.columns(2)
-      with col1:
-        st.metric("Total Unit Bangunan", f"{len(df_c_filtered):,} Unit")
-      with col2:
-        st.metric(
-            "Total Nilai Bangunan", f"Rp {df_c_filtered['Harga_Clean'].sum():,.0f}"
-        )
+    if filter_nilai_c == "Di bawah Rp 200 Juta":
+      df_c_filtered = df_c_filtered[df_c_filtered["Harga_Clean"] < 200000000]
+    elif filter_nilai_c == "Rp 200 Juta - Rp 1 Miliar":
+      df_c_filtered = df_c_filtered[
+          (df_c_filtered["Harga_Clean"] >= 200000000)
+          & (df_c_filtered["Harga_Clean"] <= 1000000000)
+      ]
+    elif filter_nilai_c == "Di atas Rp 1 Miliar":
+      df_c_filtered = df_c_filtered[df_c_filtered["Harga_Clean"] > 1000000000]
 
-      st.markdown("---")
-      kw_c = st.text_input("🔎 Cari Berdasarkan Nama Gedung / Lokasi:")
-      df_c_view = df_c_filtered.copy()
-      if kw_c:
-        df_c_view = df_c_view[
-            df_c_view.astype(str)
-            .apply(lambda row: row.str.contains(kw_c, case=False).any(), axis=1)
-        ]
-
-      event_c = st.dataframe(
-          df_c_view.drop(columns=["Harga_Clean"], errors="ignore"),
-          use_container_width=True,
-          on_select="rerun",
-          selection_mode="single-row",
-          height=400,
+    col_mc1, col_mc2 = st.columns(2)
+    with col_mc1:
+      st.metric("Jumlah Unit Gedung Akurat", f"{len(df_c_filtered):,} Unit")
+    with col_mc2:
+      st.metric(
+          "Total Nilai Gedung", f"Rp {df_c_filtered['Harga_Clean'].sum():,.0f}"
       )
 
-      if event_c.selection.rows:
-        local_idx_c = event_c.selection.rows[0]
-        actual_idx_c = df_c.index[df_c_view.index[local_idx_c]]
-        st.session_state.selected_row_idx_c = actual_idx_c
-        st.rerun()
+    st.markdown("---")
+    kw_c = st.text_input("🔎 Cari Berdasarkan Nama Gedung / Lokasi:")
+    df_c_view = df_c_filtered.copy()
+    if kw_c:
+      df_c_view = df_c_view[
+          df_c_view.astype(str)
+          .apply(lambda row: row.str.contains(kw_c, case=False).any(), axis=1)
+      ]
+
+    st.dataframe(
+        df_c_view.drop(columns=["Harga_Clean"], errors="ignore"),
+        use_container_width=True,
+        height=400,
+    )
