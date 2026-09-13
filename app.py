@@ -51,24 +51,27 @@ st.markdown(
     }
     .header-banner {
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
-        padding: 30px;
+        padding: 25px;
         border-radius: 16px;
         color: white;
-        margin-bottom: 25px;
+        margin-bottom: 20px;
         box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
     .card-kategori {
         background: white;
-        padding: 20px;
+        padding: 18px;
         border-radius: 12px;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         border-left: 5px solid #2563eb;
-        margin-bottom: 15px;
+        margin-bottom: 12px;
     }
-    .stButton>button {
-        border-radius: 8px;
-        font-weight: 600;
-        width: 100%;
+    .preview-card {
+        background: #ffffff;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        margin-top: 15px;
     }
     </style>
 """,
@@ -125,10 +128,8 @@ def clean_harga(df):
 
 
 def get_total_count(df, table_name=""):
-  """Mengambil jumlah total berdasarkan nomor urut maksimum pada kolom pertama (1 s.d N)"""
   if df.empty:
     return 0
-
   if table_name == "tabel_kendaraan" and len(df) >= 1609:
     return 1609
   elif table_name == "tabel_kib_a_tanah" and len(df) >= 1013:
@@ -223,6 +224,58 @@ def kategorkan_kendaraan(nama_brg):
   return "Mobil Dinas"
 
 
+# --- FUNGSI GENERATOR DOWNLOAD (EXCEL, WORD, PDF) ---
+def convert_df_to_excel(df_item):
+  output = io.BytesIO()
+  with pd.ExcelWriter(output, engine="openpyxl") as writer:
+    df_item.to_excel(writer, index=False, sheet_name="Detail_Aset")
+  return output.getvalue()
+
+
+def generate_word_doc(row_data):
+  doc = Document()
+  doc.add_heading("DETAIL INFORMASI ASET DAERAH", 0)
+  p = doc.add_paragraph()
+  p.add_run(
+      "Dokumen Kartu Inventaris / Rincian Barang Daerah (SIMANTAP v2.1)\n\n"
+  )
+
+  table = doc.add_table(rows=len(row_data), cols=2)
+  table.style = "Table Grid"
+  for idx, (k, v) in enumerate(row_data.items()):
+    table.cell(idx, 0).text = str(k)
+    table.cell(idx, 1).text = str(v)
+
+  bio = io.BytesIO()
+  doc.save(bio)
+  bio.seek(0)
+  return bio.getvalue()
+
+
+def generate_pdf_doc(row_data):
+  bio = io.BytesIO()
+  c = canvas.Canvas(bio, pagesize=letter)
+  width, height = letter
+
+  c.setFont("Helvetica-Bold", 14)
+  c.drawString(50, height - 50, "DETAIL INFORMASI ASET DAERAH")
+  c.setFont("Helvetica", 10)
+  c.drawString(50, height - 65, "SIMANTAP - Manajemen Aset Terpadu")
+
+  y = height - 100
+  c.setFont("Helvetica", 9)
+  for k, v in row_data.items():
+    if y < 50:
+      c.showPage()
+      y = height - 50
+    c.drawString(50, y, f"- {k}: {v}")
+    y -= 18
+
+  c.save()
+  bio.seek(0)
+  return bio.getvalue()
+
+
 # --- HEADER UTAMA ---
 st.markdown(
     """
@@ -264,8 +317,8 @@ if menu == "🏠 Beranda & Ringkasan":
   st.markdown(
       """
         <div class="header-banner">
-            <h1 style="margin:0; font-size: 26px;">"Kelola Aset Daerah, Untuk Pelayanan yang Lebih Baik"</h1>
-            <p style="margin:8px 0 0 0; opacity: 0.95; font-size: 15px;">Dashboard rekapitulasi lengkap berdasarkan kategori spesifik aset secara real-time.</p>
+            <h1 style="margin:0; font-size: 24px;">"Kelola Aset Daerah, Untuk Pelayanan yang Lebih Baik"</h1>
+            <p style="margin:8px 0 0 0; opacity: 0.95; font-size: 14px;">Dashboard rekapitulasi lengkap berdasarkan kategori spesifik aset secara real-time.</p>
         </div>
     """,
       unsafe_allow_html=True,
@@ -309,16 +362,9 @@ if menu == "🏠 Beranda & Ringkasan":
     ) = (0, 0, 0, 0, 0, 0, 0, 0)
 
   tanah_cnt = get_total_count(df_a, "tabel_kib_a_tanah")
-  tanah_val = 0
-  if not df_a.empty:
-    df_a["Harga_Clean"] = clean_harga(df_a)
-    tanah_val = df_a["Harga_Clean"].sum()
-
+  tanah_val = df_a["Harga_Clean"].sum() if not df_a.empty else 0
   gedung_cnt = get_total_count(df_c, "tabel_kib_c_gedung")
-  gedung_val = 0
-  if not df_c.empty:
-    df_c["Harga_Clean"] = clean_harga(df_c)
-    gedung_val = df_c["Harga_Clean"].sum()
+  gedung_val = df_c["Harga_Clean"].sum() if not df_c.empty else 0
 
   col1, col2, col3 = st.columns(3)
   with col1:
@@ -327,7 +373,7 @@ if menu == "🏠 Beranda & Ringkasan":
         <div class="card-kategori">
             <h4 style="margin:0; color:#1e3a8a;">🚜 Alat Berat</h4>
             <h2 style="margin:5px 0; color:#0f172a;">{alat_berat_cnt:,} Unit</h2>
-            <p style="margin:0; color:#64748b; font-size:14px;">Nilai: Rp {alat_berat_val:,.0f}</p>
+            <p style="margin:0; color:#64748b; font-size:13px;">Nilai: Rp {alat_berat_val:,.0f}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -337,7 +383,7 @@ if menu == "🏠 Beranda & Ringkasan":
         <div class="card-kategori">
             <h4 style="margin:0; color:#1e3a8a;">🚗 Mobil Dinas</h4>
             <h2 style="margin:5px 0; color:#0f172a;">{mobil_cnt:,} Unit</h2>
-            <p style="margin:0; color:#64748b; font-size:14px;">Nilai: Rp {mobil_val:,.0f}</p>
+            <p style="margin:0; color:#64748b; font-size:13px;">Nilai: Rp {mobil_val:,.0f}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -349,7 +395,7 @@ if menu == "🏠 Beranda & Ringkasan":
         <div class="card-kategori" style="border-left-color: #059669;">
             <h4 style="margin:0; color:#065f46;">🚚 Pick Up / Truk</h4>
             <h2 style="margin:5px 0; color:#0f172a;">{pickup_cnt:,} Unit</h2>
-            <p style="margin:0; color:#64748b; font-size:14px;">Nilai: Rp {pickup_val:,.0f}</p>
+            <p style="margin:0; color:#64748b; font-size:13px;">Nilai: Rp {pickup_val:,.0f}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -359,7 +405,7 @@ if menu == "🏠 Beranda & Ringkasan":
         <div class="card-kategori" style="border-left-color: #059669;">
             <h4 style="margin:0; color:#065f46;">🏍️ Sepeda Motor</h4>
             <h2 style="margin:5px 0; color:#0f172a;">{motor_cnt:,} Unit</h2>
-            <p style="margin:0; color:#64748b; font-size:14px;">Nilai: Rp {motor_val:,.0f}</p>
+            <p style="margin:0; color:#64748b; font-size:13px;">Nilai: Rp {motor_val:,.0f}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -371,7 +417,7 @@ if menu == "🏠 Beranda & Ringkasan":
         <div class="card-kategori" style="border-left-color: #7c3aed;">
             <h4 style="margin:0; color:#6d28d9;">🗺️ KIB A (Tanah)</h4>
             <h2 style="margin:5px 0; color:#0f172a;">{tanah_cnt:,} Bidang</h2>
-            <p style="margin:0; color:#64748b; font-size:14px;">Nilai: Rp {tanah_val:,.0f}</p>
+            <p style="margin:0; color:#64748b; font-size:13px;">Nilai: Rp {tanah_val:,.0f}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -381,7 +427,7 @@ if menu == "🏠 Beranda & Ringkasan":
         <div class="card-kategori" style="border-left-color: #7c3aed;">
             <h4 style="margin:0; color:#6d28d9;">🏢 KIB C (Gedung)</h4>
             <h2 style="margin:5px 0; color:#0f172a;">{gedung_cnt:,} Unit</h2>
-            <p style="margin:0; color:#64748b; font-size:14px;">Nilai: Rp {gedung_val:,.0f}</p>
+            <p style="margin:0; color:#64748b; font-size:13px;">Nilai: Rp {gedung_val:,.0f}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -389,64 +435,70 @@ if menu == "🏠 Beranda & Ringkasan":
 
 
 # ==========================================
-# 1. MENU KENDARAAN DINAS
+# FUNGSI RENDER MODUL UTAMA DENGAN PREVIEW KLIK & DOWNLOAD
 # ==========================================
-elif menu == "🚗 Kendaraan Dinas":
-  df = load_data("tabel_kendaraan")
+def render_modul_aset(table_name, judul_modul, placeholder_cari):
+  df = load_data(table_name)
   if df.empty:
-    st.warning("Data tabel_kendaraan belum tersedia.")
-  else:
-    df["Harga_Clean"] = clean_harga(df)
+    st.warning(f"Data {table_name} belum tersedia.")
+    return
+
+  df["Harga_Clean"] = clean_harga(df)
+  skpd_col = cari_kolom(df, ["skpd", "unit", "opd"])
+
+  if table_name == "tabel_kendaraan":
     nama_col_ref = get_nama_barang(df)
     df["Kategori_Detail"] = df[nama_col_ref].apply(kategorkan_kendaraan)
-    skpd_col = cari_kolom(df, ["skpd", "unit", "opd"])
 
-    st.markdown(
-        """
+  st.markdown(
+      f"""
         <div class="header-banner">
-            <h2 style='margin:0;'>🚗 Manajemen Aset Kendaraan Dinas</h2>
-            <p style='margin:5px 0 0 0;'>Filter jumlah barang berdasarkan SKPD dan Kategori Nilai Barang.</p>
+            <h2 style='margin:0;'>{judul_modul}</h2>
+            <p style='margin:5px 0 0 0;'>Cari barang, klik untuk melihat preview detail, serta unduh laporan secara instan.</p>
         </div>
     """,
-        unsafe_allow_html=True,
+      unsafe_allow_html=True,
+  )
+
+  col_f1, col_f2 = st.columns(2)
+  with col_f1:
+    skpd_list = (
+        ["Semua SKPD"]
+        + sorted(df[skpd_col].dropna().astype(str).unique().tolist())
+        if skpd_col
+        else ["Semua SKPD"]
+    )
+    selected_skpd = st.selectbox(
+        "🏢 **Filter Berdasarkan SKPD:**", skpd_list, key=f"skpd_{table_name}"
     )
 
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-      skpd_list = (
-          ["Semua SKPD"]
-          + sorted(df[skpd_col].dropna().astype(str).unique().tolist())
-          if skpd_col
-          else ["Semua SKPD"]
-      )
-      selected_skpd = st.selectbox("🏢 **Filter Berdasarkan SKPD:**", skpd_list)
+  with col_f2:
+    filter_nilai = st.selectbox(
+        "💰 **Filter Berdasarkan Nilai Barang:**",
+        [
+            "Semua Kisaran Nilai",
+            "Di bawah Rp 50 Juta",
+            "Rp 50 Juta - Rp 200 Juta",
+            "Di atas Rp 200 Juta",
+        ],
+        key=f"nilai_{table_name}",
+    )
 
-    with col_f2:
-      filter_nilai = st.selectbox(
-          "💰 **Filter Berdasarkan Nilai Barang:**",
-          [
-              "Semua Kisaran Nilai",
-              "Di bawah Rp 50 Juta",
-              "Rp 50 Juta - Rp 200 Juta",
-              "Di atas Rp 200 Juta",
-          ],
-      )
+  df_filtered = df.copy()
+  if selected_skpd != "Semua SKPD" and skpd_col:
+    df_filtered = df_filtered[df_filtered[skpd_col] == selected_skpd]
 
-    df_filtered = df.copy()
-    if selected_skpd != "Semua SKPD" and skpd_col:
-      df_filtered = df_filtered[df_filtered[skpd_col] == selected_skpd]
+  if filter_nilai == "Di bawah Rp 50 Juta":
+    df_filtered = df_filtered[df_filtered["Harga_Clean"] < 50000000]
+  elif filter_nilai == "Rp 50 Juta - Rp 200 Juta":
+    df_filtered = df_filtered[
+        (df_filtered["Harga_Clean"] >= 50000000)
+        & (df_filtered["Harga_Clean"] <= 200000000)
+    ]
+  elif filter_nilai == "Di atas Rp 200 Juta":
+    df_filtered = df_filtered[df_filtered["Harga_Clean"] > 200000000]
 
-    if filter_nilai == "Di bawah Rp 50 Juta":
-      df_filtered = df_filtered[df_filtered["Harga_Clean"] < 50000000]
-    elif filter_nilai == "Rp 50 Juta - Rp 200 Juta":
-      df_filtered = df_filtered[
-          (df_filtered["Harga_Clean"] >= 50000000)
-          & (df_filtered["Harga_Clean"] <= 200000000)
-      ]
-    elif filter_nilai == "Di atas Rp 200 Juta":
-      df_filtered = df_filtered[df_filtered["Harga_Clean"] > 200000000]
-
-    # Hitung Sub-Kategori pada filter aktif
+  if table_name == "tabel_kendaraan":
     sub_alat = len(df_filtered[df_filtered["Kategori_Detail"] == "Alat Berat"])
     sub_mobil = len(df_filtered[df_filtered["Kategori_Detail"] == "Mobil Dinas"])
     sub_pickup = len(
@@ -463,198 +515,137 @@ elif menu == "🚗 Kendaraan Dinas":
     sc3.metric("🚚 Pick Up / Truk", f"{sub_pickup} Unit")
     sc4.metric("🏍️ Sepeda Motor", f"{sub_motor} Unit")
 
-    col_m1, col_m2 = st.columns(2)
-    with col_m1:
-      st.metric(
-          "Total Unit Akurat",
-          f"{get_total_count(df_filtered, 'tabel_kendaraan'):,} Unit",
+  st.markdown("---")
+  col_m1, col_m2 = st.columns(2)
+  with col_m1:
+    st.metric("Total Unit Akurat", f"{get_total_count(df_filtered, table_name):,} Unit")
+  with col_m2:
+    st.metric("Akumulasi Nilai", f"Rp {df_filtered['Harga_Clean'].sum():,.0f}")
+
+  st.markdown("---")
+  keyword = st.text_input(f"🔎 {placeholder_cari}", key=f"kw_{table_name}")
+  df_view = df_filtered.copy()
+  if keyword:
+    df_view = df_view[
+        df_view.astype(str)
+        .apply(lambda row: row.str.contains(keyword, case=False).any(), axis=1)
+    ]
+
+  # Tampilkan tabel interaktif dengan pemilihan baris untuk Preview
+  df_display = df_view.drop(
+      columns=[c for c in ["Harga_Clean", "Kategori_Detail"] if c in df_view.columns],
+      errors="ignore",
+  )
+
+  st.info(
+      "💡 **Tips:** Klik pada salah satu baris tabel di bawah untuk melihat rincian preview dan mengunduh data barang."
+  )
+  event = st.dataframe(
+      df_display,
+      use_container_width=True,
+      height=380,
+      selection_mode="single-row",
+      on_select="rerun",
+      key=f"grid_{table_name}",
+  )
+
+  # --- PANEL PREVIEW & DOWNLOAD ---
+  selected_rows = event.selection.get("rows", [])
+  if selected_rows:
+    idx_row = selected_rows[0]
+    if idx_row < len(df_view):
+      selected_data = df_view.iloc[idx_row].to_dict()
+
+      st.markdown(
+          """
+            <div class="preview-card">
+                <h3 style="margin-top:0; color:#1e3a8a;">📋 Preview Rincian Barang Terpilih</h3>
+            </div>
+            """,
+          unsafe_allow_html=True,
       )
-    with col_m2:
-      st.metric(
-          "Akumulasi Nilai", f"Rp {df_filtered['Harga_Clean'].sum():,.0f}"
+
+      # Tampilkan detail dalam kolom rapi
+      col_p1, col_p2 = st.columns(2)
+      items_list = list(selected_data.items())
+      half = len(items_list) // 2
+
+      with col_p1:
+        for k, v in items_list[:half]:
+          if k not in ["Harga_Clean", "Kategori_Detail"]:
+            st.text(f"{k}: {v}")
+      with col_p2:
+        for k, v in items_list[half:]:
+          if k not in ["Harga_Clean", "Kategori_Detail"]:
+            st.text(f"{k}: {v}")
+
+      st.markdown("### 📥 Download Laporan Barang Ini")
+      d_col1, d_col2, d_col3 = st.columns(3)
+
+      df_single_row = pd.DataFrame([selected_data]).drop(
+          columns=[
+              c
+              for c in ["Harga_Clean", "Kategori_Detail"]
+              if c in selected_data
+          ],
+          errors="ignore",
       )
 
-    st.markdown("---")
-    keyword = st.text_input("🔎 Cari Berdasarkan No. Polisi / Merk / Pengguna:")
-    df_view = df_filtered.copy()
-    if keyword:
-      df_view = df_view[
-          df_view.astype(str)
-          .apply(lambda row: row.str.contains(keyword, case=False).any(), axis=1)
-      ]
+      with d_col1:
+        excel_data = convert_df_to_excel(df_single_row)
+        st.download_button(
+            label="📊 Download Excel (.xlsx)",
+            data=excel_data,
+            file_name=f"Detail_Aset_{table_name}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"dl_excel_{table_name}",
+        )
+      with d_col2:
+        word_data = generate_word_doc(selected_data)
+        st.download_button(
+            label="📝 Download Word (.docx)",
+            data=word_data,
+            file_name=f"Detail_Aset_{table_name}.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            key=f"dl_word_{table_name}",
+        )
+      with d_col3:
+        pdf_data = generate_pdf_doc(selected_data)
+        st.download_button(
+            label="📄 Download PDF (.pdf)",
+            data=pdf_data,
+            file_name=f"Detail_Aset_{table_name}.pdf",
+            mime="application/pdf",
+            key=f"dl_pdf_{table_name}",
+        )
 
-    st.dataframe(
-        df_view.drop(
-            columns=["Harga_Clean", "Kategori_Detail"], errors="ignore"
-        ),
-        use_container_width=True,
-        height=400,
-    )
 
+# ==========================================
+# 1. MENU KENDARAAN DINAS
+# ==========================================
+elif menu == "🚗 Kendaraan Dinas":
+  render_modul_aset(
+      "tabel_kendaraan",
+      "🚗 Manajemen Aset Kendaraan Dinas",
+      "Cari Berdasarkan No. Polisi / Merk / Pengguna:",
+  )
 
 # ==========================================
 # 2. MENU KIB A (TANAH)
 # ==========================================
 elif menu == "🗺️ KIB A (Tanah)":
-  df_a = load_data("tabel_kib_a_tanah")
-  if df_a.empty:
-    st.warning("Belum ada data untuk tabel KIB A (Tanah).")
-  else:
-    df_a["Harga_Clean"] = clean_harga(df_a)
-    skpd_col_a = cari_kolom(df_a, ["skpd", "unit", "opd"])
-
-    st.markdown(
-        """
-        <div class="header-banner">
-            <h2 style='margin:0;'>🗺️ Manajemen Aset KIB A (Tanah)</h2>
-            <p style='margin:5px 0 0 0;'>Filter jumlah bidang tanah berdasarkan SKPD dan Rentang Nilai/Harga.</p>
-        </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    col_fa1, col_fa2 = st.columns(2)
-    with col_fa1:
-      skpd_options_a = (
-          ["Semua SKPD"]
-          + sorted(df_a[skpd_col_a].dropna().astype(str).unique().tolist())
-          if skpd_col_a
-          else ["Semua SKPD"]
-      )
-      selected_skpd_a = st.selectbox(
-          "🏢 **Filter Berdasarkan SKPD:**", skpd_options_a, key="skpd_a"
-      )
-    with col_fa2:
-      filter_nilai_a = st.selectbox(
-          "💰 **Filter Berdasarkan Nilai Tanah:**",
-          [
-              "Semua Kisaran Nilai",
-              "Di bawah Rp 100 Juta",
-              "Rp 100 Juta - Rp 1 Miliar",
-              "Di atas Rp 1 Miliar",
-          ],
-      )
-
-    df_a_filtered = df_a.copy()
-    if selected_skpd_a != "Semua SKPD" and skpd_col_a:
-      df_a_filtered = df_a_filtered[df_a_filtered[skpd_col_a] == selected_skpd_a]
-
-    if filter_nilai_a == "Di bawah Rp 100 Juta":
-      df_a_filtered = df_a_filtered[df_a_filtered["Harga_Clean"] < 100000000]
-    elif filter_nilai_a == "Rp 100 Juta - Rp 1 Miliar":
-      df_a_filtered = df_a_filtered[
-          (df_a_filtered["Harga_Clean"] >= 100000000)
-          & (df_a_filtered["Harga_Clean"] <= 1000000000)
-      ]
-    elif filter_nilai_a == "Di atas Rp 1 Miliar":
-      df_a_filtered = df_a_filtered[df_a_filtered["Harga_Clean"] > 1000000000]
-
-    col_ma1, col_ma2 = st.columns(2)
-    with col_ma1:
-      st.metric(
-          "Jumlah Bidang Akurat",
-          f"{get_total_count(df_a_filtered, 'tabel_kib_a_tanah'):,} Bidang",
-      )
-    with col_ma2:
-      st.metric(
-          "Total Nilai Tanah", f"Rp {df_a_filtered['Harga_Clean'].sum():,.0f}"
-      )
-
-    st.markdown("---")
-    kw_a = st.text_input("🔎 Cari Berdasarkan Alamat / Lokasi:")
-    df_a_view = df_a_filtered.copy()
-    if kw_a:
-      df_a_view = df_a_view[
-          df_a_view.astype(str)
-          .apply(lambda row: row.str.contains(kw_a, case=False).any(), axis=1)
-      ]
-
-    st.dataframe(
-        df_a_view.drop(columns=["Harga_Clean"], errors="ignore"),
-        use_container_width=True,
-        height=400,
-    )
-
+  render_modul_aset(
+      "tabel_kib_a_tanah",
+      "🗺️ Manajemen Aset KIB A (Tanah)",
+      "Cari Berdasarkan Alamat / Lokasi / Keterangan:",
+  )
 
 # ==========================================
 # 3. MENU KIB C (GEDUNG & BANGUNAN)
 # ==========================================
 elif menu == "🏢 KIB C (Gedung & Bangunan)":
-  df_c = load_data("tabel_kib_c_gedung")
-  if df_c.empty:
-    st.warning("Belum ada data untuk tabel KIB C (Gedung & Bangunan).")
-  else:
-    df_c["Harga_Clean"] = clean_harga(df_c)
-    skpd_col_c = cari_kolom(df_c, ["skpd", "unit", "opd"])
-
-    st.markdown(
-        """
-        <div class="header-banner">
-            <h2 style='margin:0;'>🏢 Manajemen Aset KIB C (Gedung & Bangunan)</h2>
-            <p style='margin:5px 0 0 0;'>Filter jumlah unit gedung berdasarkan SKPD dan Rentang Nilai/Harga.</p>
-        </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    col_fc1, col_fc2 = st.columns(2)
-    with col_fc1:
-      skpd_options_c = (
-          ["Semua SKPD"]
-          + sorted(df_c[skpd_col_c].dropna().astype(str).unique().tolist())
-          if skpd_col_c
-          else ["Semua SKPD"]
-      )
-      selected_skpd_c = st.selectbox(
-          "🏢 **Filter Berdasarkan SKPD:**", skpd_options_c, key="skpd_c"
-      )
-    with col_fc2:
-      filter_nilai_c = st.selectbox(
-          "💰 **Filter Berdasarkan Nilai Gedung:**",
-          [
-              "Semua Kisaran Nilai",
-              "Di bawah Rp 200 Juta",
-              "Rp 200 Juta - Rp 1 Miliar",
-              "Di atas Rp 1 Miliar",
-          ],
-      )
-
-    df_c_filtered = df_c.copy()
-    if selected_skpd_c != "Semua SKPD" and skpd_col_c:
-      df_c_filtered = df_c_filtered[df_c_filtered[skpd_col_c] == selected_skpd_c]
-
-    if filter_nilai_c == "Di bawah Rp 200 Juta":
-      df_c_filtered = df_c_filtered[df_c_filtered["Harga_Clean"] < 200000000]
-    elif filter_nilai_c == "Rp 200 Juta - Rp 1 Miliar":
-      df_c_filtered = df_c_filtered[
-          (df_c_filtered["Harga_Clean"] >= 200000000)
-          & (df_c_filtered["Harga_Clean"] <= 1000000000)
-      ]
-    elif filter_nilai_c == "Di atas Rp 1 Miliar":
-      df_c_filtered = df_c_filtered[df_c_filtered["Harga_Clean"] > 1000000000]
-
-    col_mc1, col_mc2 = st.columns(2)
-    with col_mc1:
-      st.metric(
-          "Jumlah Unit Gedung Akurat",
-          f"{get_total_count(df_c_filtered, 'tabel_kib_c_gedung'):,} Unit",
-      )
-    with col_mc2:
-      st.metric(
-          "Total Nilai Gedung", f"Rp {df_c_filtered['Harga_Clean'].sum():,.0f}"
-      )
-
-    st.markdown("---")
-    kw_c = st.text_input("🔎 Cari Berdasarkan Nama Gedung / Lokasi:")
-    df_c_view = df_c_filtered.copy()
-    if kw_c:
-      df_c_view = df_c_view[
-          df_c_view.astype(str)
-          .apply(lambda row: row.str.contains(kw_c, case=False).any(), axis=1)
-      ]
-
-    st.dataframe(
-        df_c_view.drop(columns=["Harga_Clean"], errors="ignore"),
-        use_container_width=True,
-        height=400,
-    )
+  render_modul_aset(
+      "tabel_kib_c_gedung",
+      "🏢 Manajemen Aset KIB C (Gedung & Bangunan)",
+      "Cari Berdasarkan Nama Gedung / Lokasi / Keterangan:",
+  )
